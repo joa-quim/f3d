@@ -17,6 +17,13 @@ set(F3D_C_SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/types_c_api.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/utils_c_api.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/window_c_api.cxx
+  # f3d_ext: out-of-tree C extensions (area pick + rubber-band select + renderer
+  # hatch + vertical-scale drag). Local sidecar, NOT part of any upstream PR.
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_pick.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_interactor.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_drag_scale.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_coord_readout.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_cube_axes.cxx
 )
 
 # List of headers that will be installed
@@ -32,6 +39,7 @@ set(F3D_C_PUBLIC_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/types_c_api.h
   ${CMAKE_CURRENT_SOURCE_DIR}/utils_c_api.h
   ${CMAKE_CURRENT_SOURCE_DIR}/window_c_api.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext.h
 )
 
 add_library(c_api ${F3D_C_SOURCE_FILES})
@@ -44,6 +52,34 @@ set_target_properties(c_api PROPERTIES
 )
 
 target_link_libraries(c_api PRIVATE libf3d)
+
+# --- f3d_ext: reach libf3d internals (window_impl) + the private vtkext module
+# (vtkF3DRenderer / vtkF3DInteractorStyle) + the VTK modules they use. c_api links
+# libf3d PRIVATE so none of this is transitive -> request it explicitly. Local
+# sidecar only; remove this block (and the f3d_ext_*.cxx sources / f3d_ext.h) to
+# build a clean upstream c_api.
+find_package(VTK COMPONENTS
+  CommonCore
+  CommonDataModel
+  RenderingCore
+  RenderingOpenGL2
+  RenderingAnnotation
+  FiltersGeneral
+  InteractionStyle
+  )
+target_include_directories(c_api PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/private
+  )
+target_link_libraries(c_api PRIVATE
+  f3d::vtkextPrivate
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::RenderingCore
+  VTK::RenderingOpenGL2
+  VTK::RenderingAnnotation
+  VTK::FiltersGeneral
+  VTK::InteractionStyle
+  )
 
 target_include_directories(c_api
   PUBLIC
