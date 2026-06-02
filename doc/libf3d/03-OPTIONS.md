@@ -346,6 +346,10 @@ Set the Backface type, can be `visible` or `hidden`, Model-specified by default.
 
 CLI: `--backface-type`.
 
+### `render.model_scale` (_double_vector_, default: `1, 1, 1`)
+
+Set an anisotropic `(sx, sy, sz)` scale applied to all model actors, for instance to exaggerate the vertical relief of a surface. Applied as a GPU transform, so the underlying coordinates (and axis labels) are unchanged.
+
 ### `render.grid.enable` (_bool_, default: `false`)
 
 Show _a grid_ aligned with the horizontal (orthogonal to the Up direction) plane.
