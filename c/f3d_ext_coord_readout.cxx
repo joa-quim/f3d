@@ -23,6 +23,7 @@
 #include <vtkCornerAnnotation.h>
 #include <vtkNew.h>
 #include <vtkCellPicker.h>
+#include <vtkPointPicker.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkRenderer.h>
@@ -70,6 +71,7 @@ struct ReadoutCtx
   vtkRenderWindowInteractor* rwi = nullptr;
   vtkRenderer* renderer = nullptr;
   vtkSmartPointer<vtkCellPicker> picker;
+  vtkSmartPointer<vtkPointPicker> ppicker; // fallback for point clouds (no cells)
   vtkSmartPointer<vtkCornerAnnotation> annotation;
   vtkSmartPointer<vtkCallbackCommand> cmd;
   unsigned long tag = 0;
@@ -91,10 +93,20 @@ void MoveCB(vtkObject* caller, unsigned long, void* clientData, void*)
   }
   const int* p = rwi->GetEventPosition();
   char buf[160];
-  if (c->picker->Pick(p[0], p[1], 0.0, c->renderer))
+  double w[3];
+  bool hit = false;
+  if (c->picker->Pick(p[0], p[1], 0.0, c->renderer)) // surfaces (cells)
   {
-    double w[3];
     c->picker->GetPickPosition(w);
+    hit = true;
+  }
+  else if (c->ppicker && c->ppicker->Pick(p[0], p[1], 0.0, c->renderer)) // point clouds
+  {
+    c->ppicker->GetPickPosition(w);
+    hit = true;
+  }
+  if (hit)
+  {
     std::snprintf(buf, sizeof(buf), "X: %.6g   Y: %.6g   Z: %.6g", w[0], w[1], w[2]);
     c->annotation->SetText(0, buf); // 0 = lower-left corner
   }
@@ -129,6 +141,8 @@ extern "C"
     }
 
     vtkNew<vtkCellPicker> picker;
+    vtkNew<vtkPointPicker> ppicker; // point clouds have no cells -> cell pick misses
+    ppicker->SetTolerance(0.01);
     vtkNew<vtkCornerAnnotation> ann;
     ann->SetMaximumFontSize(18);
     ann->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
@@ -142,6 +156,7 @@ extern "C"
     c.rwi = rwi;
     c.renderer = ren;
     c.picker = picker;
+    c.ppicker = ppicker;
     c.annotation = ann;
     c.cmd = cmd;
     c.tag = rwi->AddObserver(vtkCommand::MouseMoveEvent, cmd, 1.0);

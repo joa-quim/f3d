@@ -24,6 +24,7 @@ set(F3D_C_SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_drag_scale.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_coord_readout.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_cube_axes.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_point_colors.cxx
 )
 
 # List of headers that will be installed

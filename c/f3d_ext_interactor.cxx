@@ -43,6 +43,7 @@
 #include <vtkRendererCollection.h>
 #include <vtkSmartPointer.h>
 
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <set>
@@ -94,6 +95,7 @@ struct RubberCtx
   vtkSmartPointer<vtkPolyData> hlPoly;
   vtkSmartPointer<vtkCallbackCommand> cmd;
   unsigned long tags[4] = { 0, 0, 0, 0 };
+  bool armed = false;     // selection mode: right-drag selects only while armed
   bool selecting = false;
   int x0 = 0;
   int y0 = 0;
@@ -196,13 +198,19 @@ void RubberCB(vtkObject* caller, unsigned long eid, void* clientData, void*)
   bool handled = false;
   if (eid == vtkCommand::RightButtonPressEvent)
   {
-    c->x0 = rwi->GetEventPosition()[0];
-    c->y0 = rwi->GetEventPosition()[1];
-    c->selecting = true;
-    setBox(c, c->x0, c->y0, c->x0, c->y0);
-    c->box->SetVisibility(1);
-    rwi->Render();
-    handled = true;
+    // Only hijack the right button while selection mode is armed; otherwise let
+    // f3d's normal right-drag (pan/dolly) run, so the selector can't be triggered
+    // by accident. Toggle arming with Ctrl+B.
+    if (c->armed)
+    {
+      c->x0 = rwi->GetEventPosition()[0];
+      c->y0 = rwi->GetEventPosition()[1];
+      c->selecting = true;
+      setBox(c, c->x0, c->y0, c->x0, c->y0);
+      c->box->SetVisibility(1);
+      rwi->Render();
+      handled = true;
+    }
   }
   else if (eid == vtkCommand::MouseMoveEvent)
   {
@@ -249,9 +257,23 @@ void RubberCB(vtkObject* caller, unsigned long eid, void* clientData, void*)
   }
   else if (eid == vtkCommand::KeyPressEvent)
   {
-    // Ctrl+Z -> undo the last selection change.
     const char* sym = rwi->GetKeySym();
-    if (rwi->GetControlKey() && sym && (std::strcmp(sym, "z") == 0 || std::strcmp(sym, "Z") == 0))
+    // Ctrl+B -> toggle selection (box-pick) mode. Disarmed by default so right-drag
+    // stays normal f3d interaction until the user opts in.
+    if (rwi->GetControlKey() && sym && (std::strcmp(sym, "b") == 0 || std::strcmp(sym, "B") == 0))
+    {
+      c->armed = !c->armed;
+      if (!c->armed && c->selecting) // cancel an in-progress drag
+      {
+        c->selecting = false;
+        c->box->SetVisibility(0);
+        rwi->Render();
+      }
+      fprintf(stderr, "[f3d_ext] box-select %s\n", c->armed ? "ARMED (right-drag to select)" : "off");
+      handled = true;
+    }
+    // Ctrl+Z -> undo the last selection change.
+    else if (rwi->GetControlKey() && sym && (std::strcmp(sym, "z") == 0 || std::strcmp(sym, "Z") == 0))
     {
       if (!c->undo.empty())
       {
@@ -393,6 +415,30 @@ extern "C"
       }
       registry().erase(it);
     }
+  }
+
+  void f3d_ext_set_rubber_band_armed(f3d_window_t* window, int armed)
+  {
+    auto it = registry().find(window);
+    if (it != registry().end())
+    {
+      it->second.armed = (armed != 0);
+      if (!it->second.armed && it->second.selecting && it->second.rwi)
+      {
+        it->second.selecting = false;
+        if (it->second.box)
+        {
+          it->second.box->SetVisibility(0);
+        }
+        it->second.rwi->Render();
+      }
+    }
+  }
+
+  int f3d_ext_get_rubber_band_armed(f3d_window_t* window)
+  {
+    auto it = registry().find(window);
+    return (it != registry().end() && it->second.armed) ? 1 : 0;
   }
 
 } // extern "C"

@@ -67,17 +67,19 @@ extern "C"
   typedef void (*f3d_ext_pick_callback_t)(const size_t* ids, size_t count, void* user_data);
 
   /**
-   * @brief Turn the window into a rubber-band point selector.
+   * @brief Install a rubber-band point selector on the window (DISARMED).
    *
-   * Installs a rubber-band interactor style on the window's interactor. The user
-   * presses 'r' to arm selection mode, then left-click-drags a box; on release the
-   * points inside it are picked (via f3d_ext_area_pick_points) and @p cb is invoked
-   * with their ids. 'r' again returns to normal camera interaction within the style;
-   * call f3d_ext_disable_rubber_band_pick() to fully restore f3d's own style.
+   * Adds high-priority observers to the window's interactor. Selection mode starts
+   * OFF: right-drag keeps its normal f3d behaviour until the user ARMS it — press
+   * Ctrl+B (toggle) or call f3d_ext_set_rubber_band_armed(window, 1). While armed,
+   * right-click-drag a box; on release the enclosed points are picked (via
+   * f3d_ext_area_pick_points, toggle/XOR into a persistent selection), highlighted
+   * red, and @p cb is invoked with the FULL current selection. Ctrl+Z undoes the
+   * last change. This is intended for POINT CLOUDS — on a surface the frustum pick
+   * also returns occluded points, so callers should not arm it for solid meshes.
    *
-   * Call AFTER the engine has an interactor (e.g. after f3d_engine_get_interactor)
-   * and before f3d_interactor_start(). The previous style + picker are remembered
-   * and restored on disable.
+   * Call AFTER the engine has an interactor (f3d_engine_get_interactor) and before
+   * f3d_interactor_start().
    *
    * @return 1 on success, 0 if the window has no interactor yet / on error.
    */
@@ -85,8 +87,19 @@ extern "C"
     f3d_window_t* window, f3d_ext_pick_callback_t cb, void* user_data);
 
   /**
-   * @brief Restore the interactor style + picker that were active before
-   *        f3d_ext_enable_rubber_band_pick(). No-op if it was never enabled.
+   * @brief Arm (1) or disarm (0) rubber-band selection mode programmatically.
+   *        Equivalent to the Ctrl+B toggle. No-op if the selector is not enabled.
+   */
+  F3D_EXPORT void f3d_ext_set_rubber_band_armed(f3d_window_t* window, int armed);
+
+  /**
+   * @brief Whether rubber-band selection mode is currently armed (1) or not (0).
+   */
+  F3D_EXPORT int f3d_ext_get_rubber_band_armed(f3d_window_t* window);
+
+  /**
+   * @brief Remove the rubber-band selector observers + overlays. No-op if it was
+   *        never enabled.
    */
   F3D_EXPORT void f3d_ext_disable_rubber_band_pick(f3d_window_t* window);
 
@@ -164,21 +177,85 @@ extern "C"
   F3D_EXPORT void f3d_ext_disable_coord_readout(f3d_window_t* window);
 
   /**
+   * @brief Component flags for f3d_ext_enable_cube_axes (combine with bitwise OR).
+   *
+   * The default minimal look (F3D_EXT_CUBE_AXES_DEFAULT) is the bounding-cube
+   * edges + X/Y tick labels + a bottom floor plane. Walls (gridlines on every
+   * face) and Z (elevation) tick labels are opt-in.
+   */
+#define F3D_EXT_CUBE_AXES_EDGES 0x01   /**< cube outer edges + X/Y axis tick labels */
+#define F3D_EXT_CUBE_AXES_FLOOR 0x02   /**< bottom face: a semi-transparent floor plane */
+#define F3D_EXT_CUBE_AXES_GRID 0x04    /**< gridlines on all faces (the "walls") */
+#define F3D_EXT_CUBE_AXES_ZLABELS 0x08 /**< Z (elevation) axis tick labels too */
+#define F3D_EXT_CUBE_AXES_DEFAULT                                                                    \
+  (F3D_EXT_CUBE_AXES_EDGES | F3D_EXT_CUBE_AXES_FLOOR | F3D_EXT_CUBE_AXES_ZLABELS)
+
+  /**
    * @brief Add labelled bounding-box axes (numbered X/Y/Z tick axes) around the
    *        data — the cube-axes that stock libf3d lacks (gap #2).
+   *
+   * @p flags selects which components are drawn (see F3D_EXT_CUBE_AXES_*). Pass
+   * F3D_EXT_CUBE_AXES_DEFAULT for the minimal look (edges + X/Y labels + floor,
+   * NO walls). The cube is set to the exact data bounds.
    *
    * Bounds are captured from the data actors at call time; call again to refresh
    * after the geometry or scale changes. Camera-following labels update on render.
    *
    * @param window Window handle.
+   * @param flags  Bitwise OR of F3D_EXT_CUBE_AXES_* (0 also means DEFAULT).
    * @return 1 on success, 0 if there is no renderer/camera/data yet.
    */
-  F3D_EXPORT int f3d_ext_enable_cube_axes(f3d_window_t* window);
+  F3D_EXPORT int f3d_ext_enable_cube_axes(f3d_window_t* window, int flags);
 
   /**
    * @brief Remove the labelled cube axes. No-op if never enabled.
    */
   F3D_EXPORT void f3d_ext_disable_cube_axes(f3d_window_t* window);
+
+  /**
+   * @brief Give point SPRITES per-point colours (gap #9).
+   *
+   * The point-sprite path uses vtkPointGaussianMapper, which ignores texture
+   * coordinates — so the 1xN palette-texture + per-point u-texcoord trick that
+   * colours plain GL_POINTS leaves every splat flat grey. This bakes a per-point
+   * RGB (n_comp==3) or RGBA (n_comp==4) unsigned-char colour array directly onto
+   * the point-sprite polydata and switches the gaussian mapper to direct scalar
+   * colours, so colour-by-value works for round sprites too.
+   *
+   * Colours are shown at full strength (Emissive on). The splat SHAPE is the stock
+   * `model.point_sprites.type` option ("sphere" shaded ball / "circle" ring /
+   * "gaussian" soft blob) — note f3d's point-splat mapper ignores a splat-shader
+   * override set after the first render, so the shape cannot be changed from here
+   * (for round FLAT points use the plain-points path + f3d_ext_round_points instead).
+   * Enable point sprites and render the window once before calling (the sprite
+   * actors are built lazily on import/first render). @p rgb is read during the call
+   * only — the caller keeps ownership.
+   *
+   * @param window   Window handle.
+   * @param rgb      Interleaved unsigned-char colours, n_points*n_comp bytes.
+   * @param n_points Number of points; must match the sprite polydata point count.
+   * @param n_comp   3 (RGB) or 4 (RGBA).
+   * @return 1 if applied to at least one sprite actor, 0 on error / no match.
+   */
+  F3D_EXPORT int f3d_ext_color_point_sprites(
+    f3d_window_t* window, const unsigned char* rgb, size_t n_points, int n_comp);
+
+  /**
+   * @brief Render PLAIN points (point sprites disabled) as round discs (gap #9).
+   *
+   * The plain-points path honours the palette texture (colour-by-value works) but
+   * draws SQUARE GL_POINTS. This sets vtkProperty::RenderPointsAsSpheres on the
+   * imported point actors so they render round. With @p unlit != 0 lighting is turned
+   * off so each disc is a flat, full-strength colour (no 3D sphere shading) — i.e.
+   * round, flat, coloured points without the gaussian point-sprite mapper. Pass
+   * @p on == 0 to revert to square points. Render once before calling.
+   *
+   * @param window Window handle.
+   * @param on     Non-zero: round points; zero: square points.
+   * @param unlit  Non-zero (and on): flat colour (LightingOff); zero: lit spheres.
+   * @return 1 if applied to at least one point actor, 0 on error / no match.
+   */
+  F3D_EXPORT int f3d_ext_round_points(f3d_window_t* window, int on, int unlit);
 
 #ifdef __cplusplus
 }
