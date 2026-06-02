@@ -69,6 +69,18 @@ public class Window {
     }
 
     /**
+     * Set the model base color texture from an in-memory image, avoiding a
+     * temporary file on disk. The image is expected to be of ChannelType BYTE
+     * with 3 (RGB) or 4 (RGBA) components. When set, it takes precedence over the
+     * model.color.texture file-path option. Pass an empty image to clear the
+     * override and fall back to that option.
+     *
+     * @param texture image holding the texture
+     * @return this window for method chaining
+     */
+    public native Window setColorTexture(Image texture);
+
+    /**
      * Set the size of the window.
      *
      * @param width window width

@@ -80,6 +80,19 @@ extern "C"
   F3D_EXPORT f3d_image_t* f3d_window_render_to_image(f3d_window_t* window, int no_background);
 
   /**
+   * @brief Set the model base color texture from an in-memory image.
+   *
+   * Avoids writing a temporary texture file to disk. The image is expected to be
+   * of ChannelType BYTE with 3 (RGB) or 4 (RGBA) components. When set, it takes
+   * precedence over the `model.color.texture` file-path option. Pass an empty
+   * image (width or height 0) to clear the override and fall back to that option.
+   *
+   * @param window Window handle.
+   * @param image Image handle holding the texture, not freed by this call.
+   */
+  F3D_EXPORT void f3d_window_set_color_texture(f3d_window_t* window, f3d_image_t* image);
+
+  /**
    * @brief Set the size of the window.
    *
    * @param window Window handle.

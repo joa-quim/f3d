@@ -2,6 +2,7 @@
 
 #include <app_f3d_F3D_Window.h>
 
+#include <image.h>
 #include <types.h>
 #include <window.h>
 
@@ -69,6 +70,20 @@ extern "C"
     jobject result = env->NewObject(imageClass, constructor, reinterpret_cast<jlong>(img));
 
     return result;
+  }
+
+  JNIEXPORT jobject JAVA_BIND(Window, setColorTexture)(
+    JNIEnv* env, jobject self, jobject texture)
+  {
+    jclass imageClass = env->FindClass("app/f3d/F3D/Image");
+    jfieldID fid = env->GetFieldID(imageClass, "mNativeAddress", "J");
+    jlong ptr = env->GetLongField(texture, fid);
+    f3d::image* img = reinterpret_cast<f3d::image*>(ptr);
+    if (img)
+    {
+      GetEngine(env, self)->getWindow().setColorTexture(*img);
+    }
+    return self;
   }
 
   JNIEXPORT jobject JAVA_BIND(Window, setSize)(JNIEnv* env, jobject self, jint width, jint height)

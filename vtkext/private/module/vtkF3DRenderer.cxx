@@ -224,6 +224,26 @@ vtkSmartPointer<vtkTexture> GetTexture(const fs::path& filePath, bool isSRGB = f
   return texture;
 }
 
+//----------------------------------------------------------------------------
+// Build a texture directly from an in-memory image, mirroring ::GetTexture but
+// without going through a file reader.
+vtkSmartPointer<vtkTexture> GetTextureFromImage(vtkImageData* img, bool isSRGB = false)
+{
+  vtkSmartPointer<vtkTexture> texture;
+  if (img)
+  {
+    texture = vtkSmartPointer<vtkTexture>::New();
+    texture->SetInputData(img);
+    if (isSRGB)
+    {
+      texture->UseSRGBColorSpaceOn();
+    }
+    texture->InterpolateOn();
+    texture->SetColorModeToDirectScalars();
+  }
+  return texture;
+}
+
 template<typename F>
 void ExecFuncOnAllPolyDataUniforms(vtkActorCollection* actors, F&& func)
 {
@@ -2386,6 +2406,16 @@ void vtkF3DRenderer::SetTextureBaseColor(const std::optional<fs::path>& tex)
 }
 
 //----------------------------------------------------------------------------
+void vtkF3DRenderer::SetTextureBaseColorImage(vtkImageData* img)
+{
+  if (this->TextureBaseColorImage != img)
+  {
+    this->TextureBaseColorImage = img;
+    this->ActorsPropertiesConfigured = false;
+  }
+}
+
+//----------------------------------------------------------------------------
 void vtkF3DRenderer::SetTextureMaterial(const std::optional<fs::path>& tex)
 {
   if (this->TextureMaterial != tex)
@@ -2586,9 +2616,12 @@ void vtkF3DRenderer::ConfigureActorsProperties()
       this->ConfigureActorTextureTransform(coloring.Actor, transform);
     }
 
-    if (this->TextureBaseColor.has_value())
+    if (this->TextureBaseColorImage || this->TextureBaseColor.has_value())
     {
-      auto colorTex = ::GetTexture(this->TextureBaseColor.value(), true);
+      // An in-memory image, when set, takes precedence over the file-path texture.
+      auto colorTex = this->TextureBaseColorImage
+        ? ::GetTextureFromImage(this->TextureBaseColorImage, true)
+        : ::GetTexture(this->TextureBaseColor.value(), true);
       coloring.Actor->GetProperty()->SetBaseColorTexture(colorTex);
       coloring.OriginalActor->GetProperty()->SetBaseColorTexture(colorTex);
 
