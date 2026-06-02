@@ -615,6 +615,8 @@ void window_impl::UpdateDynamicOptions()
   renderer->ShowGrid(opt.render.grid.enable);
   renderer->SetGridColor(opt.render.grid.color);
 
+  renderer->SetModelScale(opt.render.model_scale);
+
   renderer->ShowAxesGrid(opt.render.axes_grid.enable);
 
   if (!opt.scene.camera.index.has_value())

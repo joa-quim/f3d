@@ -2386,6 +2386,16 @@ void vtkF3DRenderer::SetTextureBaseColor(const std::optional<fs::path>& tex)
 }
 
 //----------------------------------------------------------------------------
+void vtkF3DRenderer::SetModelScale(const std::optional<std::vector<double>>& scale)
+{
+  if (this->ModelScale != scale)
+  {
+    this->ModelScale = scale;
+    this->ActorsPropertiesConfigured = false;
+  }
+}
+
+//----------------------------------------------------------------------------
 void vtkF3DRenderer::SetTextureMaterial(const std::optional<fs::path>& tex)
 {
   if (this->TextureMaterial != tex)
@@ -2509,6 +2519,13 @@ void vtkF3DRenderer::ConfigureActorsProperties()
 
   for (const auto& coloring : this->Importer->GetColoringActorsAndMappers())
   {
+    if (this->ModelScale.has_value() && this->ModelScale.value().size() == 3)
+    {
+      const std::vector<double>& s = this->ModelScale.value();
+      coloring.Actor->SetScale(s[0], s[1], s[2]);
+      coloring.OriginalActor->SetScale(s[0], s[1], s[2]);
+    }
+
     if (this->EdgeVisible.has_value())
     {
       coloring.Actor->GetProperty()->SetEdgeVisibility(this->EdgeVisible.value());

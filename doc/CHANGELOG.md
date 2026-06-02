@@ -1,5 +1,11 @@
 # Changelog
 
+## Ongoing development
+
+For libf3d users:
+
+- Added a `render.model_scale` option: an anisotropic (sx, sy, sz) scale applied to all model actors (e.g. for vertical exaggeration of a surface), as a GPU transform that leaves the true coordinates unchanged.
+
 ## v3.5.0
 
 For F3D users:

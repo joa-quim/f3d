@@ -310,6 +310,14 @@ public:
   void SetTextureBaseColor(const std::optional<fs::path>& tex);
 
   /**
+   * Set an anisotropic (sx, sy, sz) scale applied to all model actors, e.g. for
+   * vertical exaggeration of a surface. A GPU transform: true coordinates and
+   * axis labels are unchanged. Expects a 3-component vector; unset leaves actors
+   * at scale (1, 1, 1).
+   */
+  void SetModelScale(const std::optional<std::vector<double>>& scale);
+
+  /**
    * Set the material texture on all actors
    */
   void SetTextureMaterial(const std::optional<fs::path>& tex);
@@ -825,6 +833,7 @@ private:
   std::optional<std::vector<double>> SurfaceColor;
   std::optional<std::vector<double>> EmissiveFactor;
   std::optional<std::vector<double>> TexturesTransform;
+  std::optional<std::vector<double>> ModelScale;
   std::optional<fs::path> TextureMatCap;
   std::optional<fs::path> TextureBaseColor;
   std::optional<fs::path> TextureMaterial;
