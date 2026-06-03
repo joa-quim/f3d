@@ -28,7 +28,9 @@
 #include <vtkActorCollection.h>
 #include <vtkBoundingBox.h>
 #include <vtkCamera.h>
+#include <vtkCoordinate.h>
 #include <vtkCubeAxesActor.h>
+#include <vtkLookupTable.h>
 #include <vtkMapper.h>
 #include <vtkNew.h>
 #include <vtkPlaneSource.h>
@@ -38,6 +40,7 @@
 #include <vtkRenderWindowInteractor.h>
 #include <vtkRenderer.h>
 #include <vtkRendererCollection.h>
+#include <vtkScalarBarActor.h>
 #include <vtkSmartPointer.h>
 #include <vtkTextProperty.h>
 
@@ -166,6 +169,12 @@ std::map<f3d_window_t*, AxesCtx>& registry()
   static std::map<f3d_window_t*, AxesCtx> r;
   return r;
 }
+
+std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarActor>>& cbarRegistry()
+{
+  static std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarActor>> r;
+  return r;
+}
 } // namespace
 
 extern "C"
@@ -189,13 +198,16 @@ extern "C"
     }
 
     AxesCtx& c = registry()[window];
-    if (c.renderer && c.axes)
+    // Remove a prior prop via the CURRENT renderer, never the stored one: if the window
+    // pointer was freed and a new engine reused the address, c.renderer dangles (a freed
+    // renderer) -> use-after-free crash. RemoveViewProp of an absent prop is a safe no-op.
+    if (c.axes)
     {
-      c.renderer->RemoveViewProp(c.axes); // re-enable: refresh
+      ren->RemoveViewProp(c.axes); // re-enable: refresh
     }
-    if (c.renderer && c.floor)
+    if (c.floor)
     {
-      c.renderer->RemoveViewProp(c.floor);
+      ren->RemoveViewProp(c.floor);
     }
 
     // Bounds = exact union of the data actors (skips our own overlays). The
@@ -294,6 +306,156 @@ extern "C"
         }
       }
       registry().erase(it);
+    }
+  }
+
+  int f3d_ext_enable_image_axes(f3d_window_t* window, const char* xfmt, const char* yfmt)
+  {
+    vtkRenderer* ren = renderer_of(window);
+    if (!ren || !ren->GetActiveCamera())
+    {
+      return 0;
+    }
+
+    AxesCtx& c = registry()[window];
+    if (c.axes)
+    {
+      ren->RemoveViewProp(c.axes); // re-enable: refresh (current renderer, never stored)
+    }
+    if (c.floor)
+    {
+      ren->RemoveViewProp(c.floor);
+      c.floor = nullptr;
+    }
+
+    double b[6];
+    if (!dataBounds(ren, c.axes, b))
+    {
+      return 0;
+    }
+
+    vtkNew<vtkCubeAxesActor> axes;
+    axes->SetBounds(b);
+    axes->SetCamera(ren->GetActiveCamera());
+    axes->SetXTitle("X");
+    axes->SetYTitle("Y");
+    // StaticTriad pins the axes to the fixed (xmin,ymin,zmin) corner: viewed
+    // top-down with +Y up that is the bottom-left, so X runs along the bottom and
+    // Y along the left edge — a 2-D map frame. The plane is flat (z extent 0).
+    axes->SetFlyModeToStaticTriad();
+    axes->DrawXGridlinesOff();
+    axes->DrawYGridlinesOff();
+    axes->DrawZGridlinesOff();
+
+    // X (bottom) + Y (left) only; the Z axis is meaningless for a flat image.
+    axes->SetXAxisVisibility(1);
+    axes->SetYAxisVisibility(1);
+    axes->SetZAxisVisibility(0);
+    axes->SetXAxisLabelVisibility(1);
+    axes->SetYAxisLabelVisibility(1);
+    axes->SetZAxisLabelVisibility(0);
+    axes->SetXAxisTickVisibility(1);
+    axes->SetYAxisTickVisibility(1);
+    axes->SetZAxisTickVisibility(0);
+    axes->SetXAxisMinorTickVisibility(0);
+    axes->SetYAxisMinorTickVisibility(0);
+
+    // Ticks point OUTWARD, away from the figure (user preference).
+    axes->SetTickLocationToOutside();
+
+    // Caller-chosen decimal precision so adjacent labels stay unique.
+    if (xfmt && xfmt[0])
+    {
+      axes->SetXLabelFormat(xfmt);
+    }
+    if (yfmt && yfmt[0])
+    {
+      axes->SetYLabelFormat(yfmt);
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+      axes->GetTitleTextProperty(i)->SetColor(1.0, 1.0, 1.0);
+      axes->GetLabelTextProperty(i)->SetColor(1.0, 1.0, 1.0);
+    }
+    ren->AddViewProp(axes);
+    c.axes = axes;
+    c.renderer = ren;
+    return 1;
+  }
+
+  int f3d_ext_enable_colorbar(f3d_window_t* window, const unsigned char* rgb, int ncolors,
+    double vmin, double vmax, const char* title, const char* fmt)
+  {
+    vtkRenderer* ren = renderer_of(window);
+    if (!ren || ncolors < 2 || !rgb)
+    {
+      return 0;
+    }
+
+    auto& reg = cbarRegistry();
+    auto it = reg.find(window);
+    if (it != reg.end() && it->second)
+    {
+      ren->RemoveViewProp(it->second); // re-enable: refresh
+    }
+
+    // Build a lookup table from the (ordered) RGB palette spanning [vmin, vmax].
+    vtkNew<vtkLookupTable> lut;
+    lut->SetNumberOfTableValues(ncolors);
+    lut->SetTableRange(vmin, vmax);
+    for (int i = 0; i < ncolors; ++i)
+    {
+      lut->SetTableValue(i, rgb[3 * i] / 255.0, rgb[3 * i + 1] / 255.0, rgb[3 * i + 2] / 255.0, 1.0);
+    }
+    lut->Build();
+
+    vtkSmartPointer<vtkScalarBarActor> bar = vtkSmartPointer<vtkScalarBarActor>::New();
+    bar->SetLookupTable(lut);
+    if (title && title[0])
+    {
+      bar->SetTitle(title);
+    }
+    bar->SetNumberOfLabels(5);
+    if (fmt && fmt[0])
+    {
+      bar->SetLabelFormat(fmt);
+    }
+    bar->SetOrientationToVertical();
+    bar->GetPositionCoordinate()->SetCoordinateSystemToNormalizedViewport();
+    bar->GetPositionCoordinate()->SetValue(0.90, 0.30);
+    bar->SetWidth(0.05);   // slimmer + shorter than the old 0.08 x 0.76 (was too big)
+    bar->SetHeight(0.45);
+    // Fixed, readable label/title font. Without UnconstrainedFontSize the actor scales
+    // the text to fit the (now small) box -> the labels shrink to near-invisible.
+    bar->SetUnconstrainedFontSize(true);
+    bar->GetTitleTextProperty()->SetColor(1.0, 1.0, 1.0);
+    bar->GetTitleTextProperty()->SetFontSize(26);
+    bar->GetTitleTextProperty()->BoldOn();
+    bar->GetTitleTextProperty()->ShadowOff();
+    bar->GetLabelTextProperty()->SetColor(1.0, 1.0, 1.0);
+    bar->GetLabelTextProperty()->SetFontSize(26);
+    bar->GetLabelTextProperty()->ShadowOff();
+
+    ren->AddViewProp(bar);
+    reg[window] = bar;
+    return 1;
+  }
+
+  void f3d_ext_disable_colorbar(f3d_window_t* window)
+  {
+    auto& reg = cbarRegistry();
+    auto it = reg.find(window);
+    if (it != reg.end())
+    {
+      if (it->second)
+      {
+        if (vtkRenderer* ren = renderer_of(window))
+        {
+          ren->RemoveViewProp(it->second);
+        }
+      }
+      reg.erase(it);
     }
   }
 

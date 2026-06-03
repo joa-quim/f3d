@@ -198,10 +198,10 @@ void RubberCB(vtkObject* caller, unsigned long eid, void* clientData, void*)
   bool handled = false;
   if (eid == vtkCommand::RightButtonPressEvent)
   {
-    // Only hijack the right button while selection mode is armed; otherwise let
-    // f3d's normal right-drag (pan/dolly) run, so the selector can't be triggered
-    // by accident. Toggle arming with Ctrl+B.
-    if (c->armed)
+    // Hijack the right button ONLY when Ctrl is held: Ctrl+right-drag = box-select
+    // (mirrors Ctrl+left-drag = vertical scale). Plain right-drag stays f3d's normal
+    // pan/dolly, so the selector is always available yet never triggers by accident.
+    if (rwi->GetControlKey())
     {
       c->x0 = rwi->GetEventPosition()[0];
       c->y0 = rwi->GetEventPosition()[1];
@@ -258,22 +258,8 @@ void RubberCB(vtkObject* caller, unsigned long eid, void* clientData, void*)
   else if (eid == vtkCommand::KeyPressEvent)
   {
     const char* sym = rwi->GetKeySym();
-    // Ctrl+B -> toggle selection (box-pick) mode. Disarmed by default so right-drag
-    // stays normal f3d interaction until the user opts in.
-    if (rwi->GetControlKey() && sym && (std::strcmp(sym, "b") == 0 || std::strcmp(sym, "B") == 0))
-    {
-      c->armed = !c->armed;
-      if (!c->armed && c->selecting) // cancel an in-progress drag
-      {
-        c->selecting = false;
-        c->box->SetVisibility(0);
-        rwi->Render();
-      }
-      fprintf(stderr, "[f3d_ext] box-select %s\n", c->armed ? "ARMED (right-drag to select)" : "off");
-      handled = true;
-    }
     // Ctrl+Z -> undo the last selection change.
-    else if (rwi->GetControlKey() && sym && (std::strcmp(sym, "z") == 0 || std::strcmp(sym, "Z") == 0))
+    if (rwi->GetControlKey() && sym && (std::strcmp(sym, "z") == 0 || std::strcmp(sym, "Z") == 0))
     {
       if (!c->undo.empty())
       {

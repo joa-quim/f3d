@@ -177,6 +177,20 @@ extern "C"
   F3D_EXPORT void f3d_ext_disable_coord_readout(f3d_window_t* window);
 
   /**
+   * @brief Enable middle-CLICK to set the rotation centre: a middle-button click
+   *        (press+release without dragging) picks the point under the cursor, makes
+   *        it the camera focal point and pans so it is centred. Middle-DRAG still
+   *        pans (this observer is passive). No-op if there is no interactor/renderer.
+   * @return 1 on success, 0 otherwise.
+   */
+  F3D_EXPORT int f3d_ext_enable_focus_pick(f3d_window_t* window);
+
+  /**
+   * @brief Remove the middle-click focal-centre observers. No-op if never enabled.
+   */
+  F3D_EXPORT void f3d_ext_disable_focus_pick(f3d_window_t* window);
+
+  /**
    * @brief Component flags for f3d_ext_enable_cube_axes (combine with bitwise OR).
    *
    * The default minimal look (F3D_EXT_CUBE_AXES_DEFAULT) is the bounding-cube
@@ -211,6 +225,46 @@ extern "C"
    * @brief Remove the labelled cube axes. No-op if never enabled.
    */
   F3D_EXPORT void f3d_ext_disable_cube_axes(f3d_window_t* window);
+
+  /**
+   * @brief Add a 2-D map frame for a flat (z=0) image viewed top-down: an X axis
+   *        along the bottom and a Y axis along the left, with OUTWARD tick marks
+   *        and caller-supplied printf label formats. The Z axis, floor and walls
+   *        are not drawn. Shares the cube-axes registry, so f3d_ext_disable_cube_axes
+   *        removes it.
+   *
+   * @param window Window handle.
+   * @param xfmt   printf format for X (longitude) tick labels, e.g. "%.2f".
+   * @param yfmt   printf format for Y (latitude) tick labels, e.g. "%.2f".
+   *               A null/empty format falls back to the VTK default.
+   * @return 1 on success, 0 if there is no renderer/camera/data yet.
+   */
+  F3D_EXPORT int f3d_ext_enable_image_axes(
+    f3d_window_t* window, const char* xfmt, const char* yfmt);
+
+  /**
+   * @brief Add a vertical colour scale (scalar bar) on the right of the window,
+   *        built from an ordered RGB palette mapped onto the value range
+   *        [@p vmin, @p vmax]. The stock libf3d scalar bar only works through its
+   *        scivis scalar pipeline; the GMT viewers colour via a palette texture, so
+   *        this draws the matching bar directly.
+   *
+   * @param window  Window handle.
+   * @param rgb     Ordered palette, @p ncolors * 3 bytes (R,G,B per entry, low->high).
+   * @param ncolors Number of palette entries (>= 2).
+   * @param vmin    Value at the bottom of the bar.
+   * @param vmax    Value at the top of the bar.
+   * @param title   Bar title (null/empty for none).
+   * @param fmt     printf format for the tick labels, e.g. "%.1f" (null = default).
+   * @return 1 on success, 0 if there is no renderer or the palette is invalid.
+   */
+  F3D_EXPORT int f3d_ext_enable_colorbar(f3d_window_t* window, const unsigned char* rgb,
+    int ncolors, double vmin, double vmax, const char* title, const char* fmt);
+
+  /**
+   * @brief Remove the colour scale. No-op if never enabled.
+   */
+  F3D_EXPORT void f3d_ext_disable_colorbar(f3d_window_t* window);
 
   /**
    * @brief Give point SPRITES per-point colours (gap #9).
