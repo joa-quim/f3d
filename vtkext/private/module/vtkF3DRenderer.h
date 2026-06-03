@@ -35,6 +35,7 @@ class vtkCornerAnnotation;
 class vtkDiscretizableColorTransferFunction;
 class vtkF3DOpenGLGridMapper;
 class vtkGridAxesActor3D;
+class vtkImageData;
 class vtkImageReader2;
 class vtkPNGReader;
 class vtkOrientationMarkerWidget;
@@ -316,6 +317,14 @@ public:
    * at scale (1, 1, 1).
    */
   void SetModelScale(const std::optional<std::vector<double>>& scale);
+
+  /**
+   * Set the base color texture on all actors from an in-memory image.
+   * When set (non-null), this takes precedence over the file-path base color
+   * texture set through SetTextureBaseColor. Pass nullptr to clear the override
+   * and fall back to the file-path texture.
+   */
+  void SetTextureBaseColorImage(vtkImageData* img);
 
   /**
    * Set the material texture on all actors
@@ -836,6 +845,7 @@ private:
   std::optional<std::vector<double>> ModelScale;
   std::optional<fs::path> TextureMatCap;
   std::optional<fs::path> TextureBaseColor;
+  vtkSmartPointer<vtkImageData> TextureBaseColorImage;
   std::optional<fs::path> TextureMaterial;
   std::optional<fs::path> TextureEmissive;
   std::optional<fs::path> TextureNormal;

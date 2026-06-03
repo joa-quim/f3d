@@ -19,6 +19,8 @@
 #include <vtkF3DRenderPass.h>
 #include <vtkImageData.h>
 #include <vtkImageExport.h>
+
+#include <cstring>
 #include <vtkInformation.h>
 #include <vtkPNGReader.h>
 #include <vtkPointGaussianMapper.h>
@@ -743,6 +745,44 @@ image window_impl::renderToImage(bool noBackground)
   exporter->Export(output.getContent());
 
   return output;
+}
+
+//----------------------------------------------------------------------------
+window& window_impl::setColorTexture(const image& img)
+{
+  // An empty image clears the override and falls back to the file-path texture.
+  if (img.getWidth() == 0 || img.getHeight() == 0)
+  {
+    this->Internals->Renderer->SetTextureBaseColorImage(nullptr);
+    return *this;
+  }
+
+  int vtkScalarType = VTK_UNSIGNED_CHAR;
+  switch (img.getChannelType())
+  {
+    case image::ChannelType::BYTE:
+      vtkScalarType = VTK_UNSIGNED_CHAR;
+      break;
+    case image::ChannelType::SHORT:
+      vtkScalarType = VTK_UNSIGNED_SHORT;
+      break;
+    case image::ChannelType::FLOAT:
+      vtkScalarType = VTK_FLOAT;
+      break;
+  }
+
+  const unsigned int comps = img.getChannelCount();
+  vtkNew<vtkImageData> vtkImg;
+  vtkImg->SetDimensions(
+    static_cast<int>(img.getWidth()), static_cast<int>(img.getHeight()), 1);
+  vtkImg->AllocateScalars(vtkScalarType, static_cast<int>(comps));
+
+  const size_t nbytes = static_cast<size_t>(img.getWidth()) * img.getHeight() * comps *
+    img.getChannelTypeSize();
+  std::memcpy(vtkImg->GetScalarPointer(), img.getContent(), nbytes);
+
+  this->Internals->Renderer->SetTextureBaseColorImage(vtkImg);
+  return *this;
 }
 
 //----------------------------------------------------------------------------

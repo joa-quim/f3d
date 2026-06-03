@@ -44,6 +44,7 @@ For F3D users:
 
 For libf3d users:
 
+- Added `window::setColorTexture` (and C API `f3d_window_set_color_texture`) to set the model base color texture from an in-memory image, avoiding a temporary file on disk
 - Reworked the Qt/QML example from scratch in order to make it work properly
 - Reworked java and python binding for the `scene` `add` and `addBuffer` API
 - Added missing interaction modifiers in examples

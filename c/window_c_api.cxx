@@ -68,6 +68,19 @@ f3d_image_t* f3d_window_render_to_image(f3d_window_t* window, int no_background)
 }
 
 //----------------------------------------------------------------------------
+void f3d_window_set_color_texture(f3d_window_t* window, f3d_image_t* image)
+{
+  if (!window || !image)
+  {
+    return;
+  }
+
+  f3d::window* cpp_window = reinterpret_cast<f3d::window*>(window);
+  f3d::image* cpp_image = reinterpret_cast<f3d::image*>(image);
+  cpp_window->setColorTexture(*cpp_image);
+}
+
+//----------------------------------------------------------------------------
 void f3d_window_set_size(f3d_window_t* window, int width, int height)
 {
   if (!window)

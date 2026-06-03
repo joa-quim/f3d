@@ -78,6 +78,15 @@ public:
   [[nodiscard]] virtual image renderToImage(bool noBackground = false) = 0;
 
   /**
+   * Set the model base color texture from an in-memory f3d::image, avoiding a
+   * temporary file on disk. The image is expected to be of ChannelType BYTE with
+   * 3 (RGB) or 4 (RGBA) components. When set, it takes precedence over the
+   * `model.color.texture` file-path option. Pass a default-constructed (empty)
+   * image to clear the override and fall back to the file-path option.
+   */
+  virtual window& setColorTexture(const image& img) = 0;
+
+  /**
    * Set the size of the window.
    */
   virtual window& setSize(int width, int height) = 0;

@@ -845,6 +845,9 @@ PYBIND11_MODULE(pyf3d, module)
     .def("render", &f3d::window::render, "Render the window")
     .def("render_to_image", &f3d::window::renderToImage, "Render the window to an image",
       py::arg("no_background") = false)
+    .def("set_color_texture", &f3d::window::setColorTexture,
+      "Set the model base color texture from an in-memory image, avoiding a temporary file "
+      "(empty image clears the override)")
     .def("set_position", &f3d::window::setPosition)
     .def("set_icon", &f3d::window::setIcon,
       "Set the icon of the window using a memory buffer representing a PNG file")
