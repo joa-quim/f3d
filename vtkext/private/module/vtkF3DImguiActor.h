@@ -107,6 +107,11 @@ private:
    */
   void RenderNotifications(double currentTime) override;
 
+  /**
+   * Render the user (f3d_ext) demo widget panel with ImGui.
+   */
+  void RenderUserWidgets() override;
+
 private:
   vtkF3DImguiActor(const vtkF3DImguiActor&) = delete;
   void operator=(const vtkF3DImguiActor&) = delete;
