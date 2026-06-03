@@ -74,17 +74,21 @@ extern "C"
    * Ctrl+B (toggle) or call f3d_ext_set_rubber_band_armed(window, 1). While armed,
    * right-click-drag a box; on release the enclosed points are picked (via
    * f3d_ext_area_pick_points, toggle/XOR into a persistent selection), highlighted
-   * red, and @p cb is invoked with the FULL current selection. Ctrl+Z undoes the
-   * last change. This is intended for POINT CLOUDS — on a surface the frustum pick
-   * also returns occluded points, so callers should not arm it for solid meshes.
+   * with the @p r,@p g,@p b overlay colour, and @p cb is invoked with the FULL
+   * current selection. Ctrl+Z undoes the last change. This is intended for POINT
+   * CLOUDS — on a surface the frustum pick also returns occluded points, so callers
+   * should not arm it for solid meshes.
    *
    * Call AFTER the engine has an interactor (f3d_engine_get_interactor) and before
    * f3d_interactor_start().
    *
+   * @param r,g,b Overlay colour for the selected points, each in [0,1]. Use a neutral
+   *              tone (e.g. light grey 0.83,0.83,0.83) so it does not clash with the
+   *              points' own colours.
    * @return 1 on success, 0 if the window has no interactor yet / on error.
    */
   F3D_EXPORT int f3d_ext_enable_rubber_band_pick(
-    f3d_window_t* window, f3d_ext_pick_callback_t cb, void* user_data);
+    f3d_window_t* window, f3d_ext_pick_callback_t cb, void* user_data, double r, double g, double b);
 
   /**
    * @brief Arm (1) or disarm (0) rubber-band selection mode programmatically.

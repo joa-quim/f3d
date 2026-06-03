@@ -7,7 +7,7 @@
  *   - selection is TOGGLE-based: points already selected and re-dragged are
  *     deselected (XOR of the new box into the set);
  *   - Ctrl+Z undoes the last selection change (an undo stack of prior sets);
- * the selected points are highlighted in red on top, and the FULL current
+ * the selected points are highlighted (caller-set colour) on top, and the FULL current
  * selection is handed to the user callback after every change.
  *
  * Implemented with high-priority vtkCallbackCommand observers on the render-window
@@ -143,7 +143,7 @@ vtkActor* dataActor(vtkRenderer* ren, vtkActor* skip)
   return nullptr;
 }
 
-// Rebuild the red highlight overlay from the current selection set.
+// Rebuild the highlight overlay from the current selection set.
 void rebuildHighlight(RubberCtx* c)
 {
   vtkActor* src = dataActor(c->renderer, c->highlight);
@@ -284,7 +284,7 @@ extern "C"
 {
 
   int f3d_ext_enable_rubber_band_pick(
-    f3d_window_t* window, f3d_ext_pick_callback_t cb, void* user_data)
+    f3d_window_t* window, f3d_ext_pick_callback_t cb, void* user_data, double r, double g, double b)
   {
     vtkRenderWindowInteractor* rwi = interactor_of(window);
     vtkRenderer* ren = renderer_of(window);
@@ -334,7 +334,8 @@ extern "C"
     box->SetVisibility(0);
     ren->AddViewProp(box);
 
-    // Red highlight overlay for the selected points (drawn on top).
+    // Highlight overlay for the selected points (drawn on top). Colour is caller-set
+    // (default light grey) so it does not clash with the points' own colours.
     vtkNew<vtkPoints> hlpts;
     vtkNew<vtkPolyData> hlpoly;
     hlpoly->SetPoints(hlpts);
@@ -342,7 +343,7 @@ extern "C"
     hlmapper->SetInputData(hlpoly);
     vtkNew<vtkActor> highlight;
     highlight->SetMapper(hlmapper);
-    highlight->GetProperty()->SetColor(1.0, 0.0, 0.0);
+    highlight->GetProperty()->SetColor(r, g, b);
     highlight->GetProperty()->SetPointSize(10.0);
     highlight->GetProperty()->SetRepresentationToPoints();
     highlight->GetProperty()->LightingOff();
