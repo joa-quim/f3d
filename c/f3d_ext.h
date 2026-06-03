@@ -354,6 +354,25 @@ extern "C"
    */
   F3D_EXPORT void f3d_ext_clear_lines(f3d_window_t* window);
 
+  /**
+   * @brief Show (on != 0) or hide a demo panel of custom ImGui widgets inside the
+   *        F3D window — a button, checkbox, slider and tab bar.
+   *
+   * The stock libf3d UI exposes no widget-injection hook; this drives a flag on
+   * the window's UI actor whose widget drawing is implemented in f3d itself
+   * (vtkF3DImguiActor::RenderUserWidgets), so the ImGui calls share f3d's own
+   * ImGui context. The panel is movable and interactive; clicking it does not
+   * rotate the camera (f3d already honours ImGui's WantCaptureMouse).
+   *
+   * Can be called any time after the window exists; the panel appears on the next
+   * render. Works in the interactive viewer and in offscreen renders.
+   *
+   * @param window Window handle.
+   * @param on     Non-zero to show the panel, zero to hide it.
+   * @return 1 on success, 0 if the window has no UI actor yet / on error.
+   */
+  F3D_EXPORT int f3d_ext_show_demo_ui(f3d_window_t* window, int on);
+
 #ifdef __cplusplus
 }
 #endif

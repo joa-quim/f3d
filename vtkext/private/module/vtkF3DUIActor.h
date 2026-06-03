@@ -172,6 +172,15 @@ public:
   void SetBindingsVisibility(bool show);
 
   /**
+   * Set the visibility of the user (f3d_ext) widget panel.
+   * False by default. When true, RenderUserWidgets() is called each frame.
+   */
+  void SetUserWidgetsVisibility(bool show)
+  {
+    this->UserWidgetsVisible = show;
+  }
+
+  /**
    * Updates the fps value
    * 0 by default
    */
@@ -310,6 +319,14 @@ protected:
   {
   }
 
+  /**
+   * Render the user (f3d_ext) widget panel. Default does nothing; overridden by
+   * vtkF3DImguiActor to draw custom ImGui widgets in f3d's own ImGui context.
+   */
+  virtual void RenderUserWidgets()
+  {
+  }
+
   bool DropZoneLogoVisible = false;
   bool DropZoneVisible = false;
   std::string DropText = "";
@@ -356,6 +373,8 @@ protected:
   bool NotificationVisible = false;
   bool BindingsVisible = false;
   std::deque<Notification> Notifications;
+
+  bool UserWidgetsVisible = false;
 
 private:
   vtkF3DUIActor(const vtkF3DUIActor&) = delete;

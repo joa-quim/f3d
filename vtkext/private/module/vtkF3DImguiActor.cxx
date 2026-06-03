@@ -1214,6 +1214,49 @@ void vtkF3DImguiActor::SetDeltaTime(double time)
 }
 
 //----------------------------------------------------------------------------
+void vtkF3DImguiActor::RenderUserWidgets()
+{
+  // Minimal f3d_ext demo panel: a movable window with a button, a checkbox, a
+  // slider and a two-tab bar. Drawn in f3d's own ImGui context/frame (this code
+  // runs inside f3d.dll, so it shares the single global ImGui context).
+  static bool toggle = true;
+  static float value = 0.5f;
+  static int clicks = 0;
+
+  ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(240.0f, 0.0f), ImGuiCond_FirstUseEver);
+  if (ImGui::Begin("F3D.jl widgets"))
+  {
+    if (ImGui::Button("Click me"))
+    {
+      ++clicks;
+    }
+    ImGui::SameLine();
+    ImGui::Text("clicks: %d", clicks);
+
+    ImGui::Checkbox("Toggle", &toggle);
+    ImGui::SliderFloat("Value", &value, 0.0f, 1.0f);
+
+    if (ImGui::BeginTabBar("f3dExtTabs"))
+    {
+      if (ImGui::BeginTabItem("Info"))
+      {
+        ImGui::TextWrapped("Custom ImGui widgets injected into the F3D window via f3d_ext.");
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("State"))
+      {
+        ImGui::Text("toggle = %s", toggle ? "on" : "off");
+        ImGui::Text("value  = %.2f", value);
+        ImGui::EndTabItem();
+      }
+      ImGui::EndTabBar();
+    }
+  }
+  ImGui::End();
+}
+
+//----------------------------------------------------------------------------
 void vtkF3DImguiActor::RenderNotifications(double currentTime)
 {
   constexpr double slideUpTime = .1;

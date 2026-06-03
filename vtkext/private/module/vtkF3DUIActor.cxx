@@ -284,6 +284,11 @@ int vtkF3DUIActor::RenderOverlay(vtkViewport* vp)
     this->RenderNotifications(currentTime);
   }
 
+  if (this->UserWidgetsVisible)
+  {
+    this->RenderUserWidgets();
+  }
+
   this->EndFrame(renWin);
 
   return 1;
