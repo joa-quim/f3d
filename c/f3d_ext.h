@@ -315,6 +315,45 @@ extern "C"
    */
   F3D_EXPORT int f3d_ext_round_points(f3d_window_t* window, int on, int unlit);
 
+  /**
+   * @brief Add polyline overlay(s) to the window and draw them ON TOP of the
+   *        surfaces / images (the public libf3d mesh_t API can only build polygon
+   *        cells, never line cells, so lines have to go through the renderer hatch).
+   *
+   * Builds a vtkPolyData of line cells + a flat-shaded (LightingOff) vtkActor and
+   * adds it via the f3d_ext renderer hatch. Several polylines can be passed in one
+   * call (@p line_sizes); each returned id can be removed independently.
+   *
+   * @param window     Window handle.
+   * @param points     xyz interleaved, 3 * @p n_points doubles.
+   * @param n_points   total vertex count across ALL polylines.
+   * @param line_sizes vertices per polyline (their sum must equal @p n_points).
+   *                   NULL or @p n_lines == 0 => the whole buffer is one polyline.
+   * @param n_lines    number of polylines (length of @p line_sizes).
+   * @param rgb        single line colour, 3 doubles in [0,1]. NULL => default yellow.
+   * @param vert_rgb   per-vertex colour, 3 * @p n_points bytes (overrides @p rgb when
+   *                   non-NULL) for gradient/colour-by-value lines.
+   * @param width      line width in SCREEN pixels.
+   * @param overlay    non-zero: pull the lines toward the camera (polygon offset) so
+   *                   ones lying on a surface are not lost to z-fighting / draw on top.
+   * @return a line-set id (>= 1) to pass to f3d_ext_remove_lines, or 0 on error.
+   */
+  F3D_EXPORT int f3d_ext_add_lines(f3d_window_t* window, const double* points, size_t n_points,
+    const unsigned int* line_sizes, size_t n_lines, const double* rgb,
+    const unsigned char* vert_rgb, double width, int overlay);
+
+  /**
+   * @brief Remove a single line set previously added with f3d_ext_add_lines.
+   * @param window Window handle.
+   * @param id     The id returned by f3d_ext_add_lines. No-op if unknown.
+   */
+  F3D_EXPORT void f3d_ext_remove_lines(f3d_window_t* window, int id);
+
+  /**
+   * @brief Remove ALL line sets added to the window. No-op if none.
+   */
+  F3D_EXPORT void f3d_ext_clear_lines(f3d_window_t* window);
+
 #ifdef __cplusplus
 }
 #endif
