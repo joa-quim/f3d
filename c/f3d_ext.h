@@ -355,6 +355,67 @@ extern "C"
   F3D_EXPORT void f3d_ext_clear_lines(f3d_window_t* window);
 
   /**
+   * @brief Per-actor edge (wireframe) visibility — gap #6.
+   *
+   * Stock libf3d's `render.show_edges` is global (all imported actors or none). This
+   * shows or hides a coloured wireframe for ONE imported actor, or all of them,
+   * addressed by index into the scene's coloring-actor list (the order meshes were
+   * imported). Pass @p actor_index == -1 to apply to every actor.
+   *
+   * It draws a SEPARATE flat-shaded (LightingOff) wireframe actor over the target
+   * geometry rather than toggling the imported actor's own EdgeVisibility — f3d
+   * configures the coloring actors as PBR, and the native edge pass ignores EdgeColor
+   * under PBR (edges come out a dim, uncoloured grey). The overlay gives a crisp,
+   * caller-chosen colour, persists across renders, and is independent of the global
+   * `render.show_edges` option. The wireframe shares the source points and mirrors the
+   * source actor's transform at call time (lines up with a model_scale exaggeration);
+   * re-call after the scale changes to refresh. Calling with @p on != 0 replaces any
+   * existing per-actor wireframe; @p on == 0 removes it.
+   *
+   * @param window       Window handle.
+   * @param actor_index  0-based index into the coloring actors; -1 = all.
+   * @param on           Non-zero: show edges; zero: hide (remove the wireframe).
+   * @param r,g,b        Edge colour in [0,1]; any negative value -> white.
+   * @param width        Edge line width in pixels; <= 0 -> 1.
+   * @return number of actors changed, 0 on error / index out of range.
+   */
+  F3D_EXPORT int f3d_ext_set_edge_visibility(
+    f3d_window_t* window, int actor_index, int on, double r, double g, double b, double width);
+
+  /**
+   * @brief Wireframe overlay on a SUBSET of one mesh's faces (per-cell edges) — gap #6.
+   *
+   * Copies the given cell ids from one imported actor's polydata (sharing its points)
+   * into a separate wireframe actor added through the renderer hatch, so edges can be
+   * drawn on a region without turning on edges for the whole mesh. The overlay mirrors
+   * the source actor's transform at call time (lines up with a model_scale
+   * exaggeration); call again after the scale changes to refresh. Returns an id
+   * removable with f3d_ext_remove_cell_edges / cleared with f3d_ext_clear_cell_edges.
+   *
+   * @param window       Window handle.
+   * @param actor_index  Source actor index into the coloring actors (>= 0).
+   * @param cell_ids     Cell ids to outline; out-of-range ids are skipped.
+   * @param n_cells      Number of ids.
+   * @param r,g,b        Wireframe colour in [0,1]; any negative -> white.
+   * @param width        Line width in pixels; <= 0 -> 1.
+   * @return overlay id (>= 1), or 0 on error / no valid cells.
+   */
+  F3D_EXPORT int f3d_ext_add_cell_edges(f3d_window_t* window, int actor_index,
+    const size_t* cell_ids, size_t n_cells, double r, double g, double b, double width);
+
+  /**
+   * @brief Remove a single cell-edge overlay added with f3d_ext_add_cell_edges.
+   * @param window Window handle.
+   * @param id     The id returned by f3d_ext_add_cell_edges. No-op if unknown.
+   */
+  F3D_EXPORT void f3d_ext_remove_cell_edges(f3d_window_t* window, int id);
+
+  /**
+   * @brief Remove ALL cell-edge overlays from the window. No-op if none.
+   */
+  F3D_EXPORT void f3d_ext_clear_cell_edges(f3d_window_t* window);
+
+  /**
    * @brief Show (on != 0) or hide a demo panel of custom ImGui widgets inside the
    *        F3D window — a button, checkbox, slider and tab bar.
    *
