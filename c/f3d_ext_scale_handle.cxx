@@ -545,6 +545,8 @@ void buildGeometry(GizmoCtx& c)
   vconeSrc->SetResolution(24);
   c.vconeSrc = vconeSrc;
   c.vcone = makeActor(vconeSrc, 1.0, 0.85, 0.2); // amber
+  // Stronger on-top bias than the rings so the compass ring never overlays/hides the cone.
+  c.vcone->GetMapper()->SetRelativeCoincidentTopologyPolygonOffsetParameters(0.0, -200000.0);
   c.vcone->PickableOn();
   updateVCone(c);
 
