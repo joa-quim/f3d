@@ -677,12 +677,14 @@ extern "C"
 
     buildGeometry(c);
 
+    // Add the cone LAST so it draws over the rings: with the strong on-top depth offset
+    // the depths saturate at the near plane and become equal, so draw order decides.
     ren->AddViewProp(c.shaft);
     ren->AddViewProp(c.shaftH);
-    ren->AddViewProp(c.vcone);
-    ren->AddViewProp(c.harrow);
     ren->AddViewProp(c.ring);
+    ren->AddViewProp(c.harrow);
     ren->AddViewProp(c.label);
+    ren->AddViewProp(c.vcone);
 
     // Fixed-direction light (world-anchored) so the ring bands keep constant shading.
     vtkNew<vtkLight> light;
