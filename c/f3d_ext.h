@@ -156,6 +156,41 @@ extern "C"
   F3D_EXPORT void f3d_ext_disable_vertical_scale_drag(f3d_window_t* window);
 
   /**
+   * @brief Fledermaus-style interaction gizmo pinned to the camera focal point
+   *        (the rotation centre). Three draggable handles, left-button drag:
+   *          - the vertical arrowhead cone -> VERTICAL SCALE (render.model_scale z;
+   *            the shaft length is fixed, the cone stretches to show the current
+   *            exaggeration). Ctrl+left-drag anywhere also still scales.
+   *          - the two horizontal arrows  -> TILT (camera elevation about the
+   *            horizontal axis through the focal point).
+   *          - the compass ring band      -> AZIMUTH (heading rotation about the world
+   *            vertical through the focal point; inclination unchanged).
+   *        The vertical axis is world-up (leans with the view inclination); the
+   *        horizontal axis follows the camera screen-right, so both axes stay aligned
+   *        with the window (they do not spin as the view orbits).
+   *        A billboard label on the axis shows the vertical exaggeration.
+   *
+   * Drives render.model_scale through the OPTION (so it survives f3d's per-render
+   * push) -> pass the engine's options handle. Camera handles use vtkCamera and an
+   * f3d render. Call AFTER the engine has an interactor and a first render (the data
+   * actors must exist for the focal point to be meaningful).
+   *
+   * @param window Window handle.
+   * @param options Options handle (from f3d_engine_get_options) to update.
+   * @param sensitivity Vertical-scale change per pixel (exp factor); <= 0 -> default 0.01.
+   * @return 1 on success, 0 if the window has no interactor/renderer/camera yet.
+   */
+  F3D_EXPORT int f3d_ext_enable_scale_handle(
+    f3d_window_t* window, f3d_options_t* options, double sensitivity);
+
+  /**
+   * @brief Remove the scale-handle gizmo (props + observers). Does NOT reset the
+   *        model scale; set render.model_scale back to (1,1,1) to undo. No-op if
+   *        never enabled.
+   */
+  F3D_EXPORT void f3d_ext_disable_scale_handle(f3d_window_t* window);
+
+  /**
    * @brief Show a live readout of the world coordinate under the mouse cursor.
    *
    * Installs an interactor style that, on every mouse move, picks the world point

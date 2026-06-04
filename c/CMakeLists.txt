@@ -27,6 +27,7 @@ set(F3D_C_SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_point_colors.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_lines.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_edges.cxx
+  ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_scale_handle.cxx
   ${CMAKE_CURRENT_SOURCE_DIR}/f3d_ext_ui.cxx
 )
 
@@ -69,6 +70,7 @@ find_package(VTK COMPONENTS
   RenderingOpenGL2
   RenderingAnnotation
   FiltersGeneral
+  FiltersSources
   InteractionStyle
   )
 target_include_directories(c_api PRIVATE
@@ -82,6 +84,7 @@ target_link_libraries(c_api PRIVATE
   VTK::RenderingOpenGL2
   VTK::RenderingAnnotation
   VTK::FiltersGeneral
+  VTK::FiltersSources
   VTK::InteractionStyle
   )
 
