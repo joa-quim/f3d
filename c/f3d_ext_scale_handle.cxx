@@ -41,6 +41,7 @@
 #include <vtkCylinderSource.h>
 #include <vtkLight.h>
 #include <vtkLineSource.h>
+#include <vtkMath.h>
 #include <vtkMatrix4x4.h>
 #include <vtkNew.h>
 #include <vtkPolyDataMapper.h>
@@ -131,7 +132,9 @@ struct GizmoCtx
   vtkSmartPointer<vtkActor> ring;         // AZIMUTH handle
   vtkSmartPointer<vtkLineSource> shaftSrc;
   vtkSmartPointer<vtkLineSource> shaftHSrc; // horizontal axis line (world-coord points)
-  vtkSmartPointer<vtkBillboardTextActor3D> label;
+  vtkSmartPointer<vtkBillboardTextActor3D> label;    // vertical-scale readout
+  vtkSmartPointer<vtkBillboardTextActor3D> azLabel;  // azimuth (heading) readout
+  vtkSmartPointer<vtkBillboardTextActor3D> inclLabel;// inclination (view tilt) readout
   vtkSmartPointer<vtkLight> light;        // fixed-direction light for the ring
   vtkSmartPointer<vtkCallbackCommand> placeCmd; // StartEvent: follow focal point
   unsigned long placeTag = 0;
@@ -142,6 +145,9 @@ struct GizmoCtx
   f3d::options* options = nullptr;
   vtkSmartPointer<vtkCallbackCommand> dragCmd;
   unsigned long dragTags[3] = { 0, 0, 0 };
+  vtkSmartPointer<vtkCallbackCommand> keyCmd; // 'x' toggles gizmo visibility (with the axes)
+  unsigned long keyTag = 0;
+  bool visible = true;
 
   double sensitivity = 0.01; // vertical-scale exp factor per pixel
   double rotSpeed = 0.5;     // degrees per pixel for tilt/azimuth
@@ -156,6 +162,8 @@ struct GizmoCtx
   double scale = 1.0;
   double right[3] = { 1, 0, 0 }; // camera screen-right (horizontal axis direction)
   double haxisLen = 0.0;         // world half-extent of the data (axis length); 0 = unknown
+  double azimuth = 0.0;          // current camera heading (deg, 0=North/+Y, CW)
+  double incl = 0.0;             // current view inclination above horizontal (deg)
 };
 
 std::map<f3d_window_t*, GizmoCtx>& registry()
@@ -194,7 +202,7 @@ void litLook(vtkActor* a)
 }
 void ringLook(vtkActor* a)
 {
-  a->GetProperty()->SetColor(0.78, 0.78, 0.82);
+  a->GetProperty()->SetColor(0.50, 0.50, 0.50);
   litLook(a);
 }
 
@@ -308,9 +316,35 @@ void placeAll(GizmoCtx& c)
     c.harrow->SetUserMatrix(M);
   }
 
+  // Labels float at a FIXED level (independent of the stretching cone). The vertical-scale
+  // readout sits a constant distance above the compass ring and is nudged sideways (along
+  // screen-right) so the growing cone never overlays it. Azimuth / inclination flank the
+  // compass ring left / right at ring level, like the Fledermaus heading widget.
+  const double aboveRing = kBodyZ + 0.28; // z readout: a short fixed hop above the compass ring
+  const double zSide = kRingR * 0.8;      // nudged sideways so the stretching cone misses it
+  const double ringSide = kRingR + 0.12;  // az hugs just outside the compass ring rim
+  const double tipTop = kRingR + 0.14;    // incl sits just above the top of the tilt ring
   if (c.label)
   {
-    c.label->SetPosition(p[0], p[1], p[2] + s * (kBodyZ + kConeH0 * c.curSz + 0.5));
+    c.label->SetPosition(p[0] + s * zSide * c.right[0], p[1] + s * zSide * c.right[1],
+      p[2] + s * aboveRing);
+  }
+  // Azimuth (heading) -> next to the COMPASS ring at the top of the vertical shaft.
+  if (c.azLabel)
+  {
+    c.azLabel->SetPosition(p[0] - s * ringSide * c.right[0], p[1] - s * ringSide * c.right[1],
+      p[2] + s * kBodyZ);
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.0f\xC2\xB0", c.azimuth); // UTF-8 degree sign
+    c.azLabel->SetInput(buf);
+  }
+  // Inclination (tilt) -> right above the top of the TILT ring at the horizontal-arm tip.
+  if (c.inclLabel)
+  {
+    c.inclLabel->SetPosition(tip[0], tip[1], tip[2] + s * tipTop);
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.0f\xC2\xB0", c.incl);
+    c.inclLabel->SetInput(buf);
   }
 }
 
@@ -349,6 +383,19 @@ void PlaceCB(vtkObject* caller, unsigned long, void* clientData, void*)
     c->right[1] = r[1];
     c->right[2] = r[2];
   }
+
+  // Heading + inclination of the current view (vpn = focal -> camera).
+  // Inclination = angle of the view direction above the horizontal plane (90 deg = straight
+  // down / map view, 0 deg = horizon-level view). Azimuth = compass heading of the LOOK
+  // direction (foc - pos) measured from +Y (North) clockwise, 0..360.
+  const double horiz = std::sqrt(vpn[0] * vpn[0] + vpn[1] * vpn[1]);
+  c->incl = std::atan2(std::abs(vpn[2]), horiz) * 180.0 / vtkMath::Pi();
+  double az = std::atan2(foc[0] - pos[0], foc[1] - pos[1]) * 180.0 / vtkMath::Pi();
+  if (az < 0.0)
+  {
+    az += 360.0;
+  }
+  c->azimuth = az;
   placeAll(*c);
 }
 
@@ -532,6 +579,49 @@ void DragCB(vtkObject* caller, unsigned long eid, void* clientData, void*)
   }
 }
 
+// Show/hide every gizmo prop (shafts, both rings, vertical cone, all three text labels).
+void setGizmoVisible(GizmoCtx& c, bool on)
+{
+  vtkProp* parts[] = { c.shaft, c.shaftH, c.vcone, c.harrow, c.ring };
+  for (vtkProp* a : parts)
+  {
+    if (a)
+    {
+      a->SetVisibility(on ? 1 : 0);
+    }
+  }
+  vtkBillboardTextActor3D* labels[] = { c.label, c.azLabel, c.inclLabel };
+  for (vtkBillboardTextActor3D* a : labels)
+  {
+    if (a)
+    {
+      a->SetVisibility(on ? 1 : 0);
+    }
+  }
+  c.visible = on;
+}
+
+// 'x' toggles f3d's trihedral axes; mirror it on the gizmo so the whole widget hides/shows
+// together. Observe at LOW priority and never abort, so f3d's own 'x' handler still runs.
+void KeyCB(vtkObject* caller, unsigned long, void* clientData, void*)
+{
+  GizmoCtx* c = static_cast<GizmoCtx*>(clientData);
+  vtkRenderWindowInteractor* rwi = vtkRenderWindowInteractor::SafeDownCast(caller);
+  if (!c || !rwi)
+  {
+    return;
+  }
+  const char* key = rwi->GetKeySym();
+  if (key && (key[0] == 'x' || key[0] == 'X') && key[1] == '\0')
+  {
+    setGizmoVisible(*c, !c->visible);
+    if (c->window)
+    {
+      c->window->render();
+    }
+  }
+}
+
 void buildGeometry(GizmoCtx& c)
 {
   // Vertical shaft (thin line, not a handle): drops from the floating body (z=kBodyZ)
@@ -611,6 +701,24 @@ void buildGeometry(GizmoCtx& c)
   label->GetTextProperty()->SetJustificationToCentered();
   c.label = label;
   updateLabel(c);
+
+  // Azimuth (heading) readout — flanks the compass ring on the left. Text set per-frame.
+  vtkSmartPointer<vtkBillboardTextActor3D> azLabel =
+    vtkSmartPointer<vtkBillboardTextActor3D>::New();
+  azLabel->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+  azLabel->GetTextProperty()->SetFontSize(16);
+  azLabel->GetTextProperty()->SetJustificationToCentered();
+  azLabel->SetInput("0\xC2\xB0");
+  c.azLabel = azLabel;
+
+  // Inclination (view tilt) readout — flanks the compass ring on the right.
+  vtkSmartPointer<vtkBillboardTextActor3D> inclLabel =
+    vtkSmartPointer<vtkBillboardTextActor3D>::New();
+  inclLabel->GetTextProperty()->SetColor(1.0, 1.0, 1.0);
+  inclLabel->GetTextProperty()->SetFontSize(16);
+  inclLabel->GetTextProperty()->SetJustificationToCentered();
+  inclLabel->SetInput("0\xC2\xB0");
+  c.inclLabel = inclLabel;
 }
 } // namespace
 
@@ -643,9 +751,13 @@ extern "C"
         ren->RemoveViewProp(a);
       }
     }
-    if (c.label)
+    vtkBillboardTextActor3D* oldLabels[] = { c.label, c.azLabel, c.inclLabel };
+    for (vtkBillboardTextActor3D* a : oldLabels)
     {
-      ren->RemoveViewProp(c.label);
+      if (a)
+      {
+        ren->RemoveViewProp(a);
+      }
     }
     if (c.light)
     {
@@ -658,6 +770,11 @@ extern "C"
         rwi->RemoveObserver(t);
       }
     }
+    if (c.keyTag)
+    {
+      rwi->RemoveObserver(c.keyTag);
+      c.keyTag = 0;
+    }
 
     c.renderer = ren;
     c.rwi = rwi;
@@ -666,6 +783,7 @@ extern "C"
     c.sensitivity = (sensitivity > 0.0) ? sensitivity : 0.01;
     c.grab = Grab::None;
     c.curSz = 1.0;
+    c.visible = true;
 
     // Pin the horizontal-axis length to the data bbox (world units): half the larger XY
     // extent, measured BEFORE the gizmo props are added so they don't inflate it. 0 if the
@@ -687,6 +805,8 @@ extern "C"
     ren->AddViewProp(c.ring);
     ren->AddViewProp(c.harrow);
     ren->AddViewProp(c.label);
+    ren->AddViewProp(c.azLabel);
+    ren->AddViewProp(c.inclLabel);
     ren->AddViewProp(c.vcone);
 
     // Fixed-direction light (world-anchored) so the ring bands keep constant shading.
@@ -717,6 +837,12 @@ extern "C"
     c.dragTags[1] = rwi->AddObserver(vtkCommand::MouseMoveEvent, dragCmd, 10.0);
     c.dragTags[2] = rwi->AddObserver(vtkCommand::LeftButtonReleaseEvent, dragCmd, 10.0);
 
+    vtkNew<vtkCallbackCommand> keyCmd;
+    keyCmd->SetCallback(KeyCB);
+    keyCmd->SetClientData(&c);
+    c.keyCmd = keyCmd;
+    c.keyTag = rwi->AddObserver(vtkCommand::KeyPressEvent, keyCmd, -1.0);
+
     c.window->render();
     return 1;
   }
@@ -743,9 +869,13 @@ extern "C"
           ren->RemoveViewProp(a);
         }
       }
-      if (c.label)
+      vtkBillboardTextActor3D* labels[] = { c.label, c.azLabel, c.inclLabel };
+      for (vtkBillboardTextActor3D* a : labels)
       {
-        ren->RemoveViewProp(c.label);
+        if (a)
+        {
+          ren->RemoveViewProp(a);
+        }
       }
       if (c.light)
       {
@@ -760,6 +890,10 @@ extern "C"
         {
           c.rwi->RemoveObserver(t);
         }
+      }
+      if (c.keyTag)
+      {
+        c.rwi->RemoveObserver(c.keyTag);
       }
     }
     registry().erase(it);
