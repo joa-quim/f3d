@@ -41,6 +41,8 @@
 #include <vtkRenderer.h>
 #include <vtkRendererCollection.h>
 #include <vtkScalarBarActor.h>
+#include <vtkScalarBarRepresentation.h>
+#include <vtkScalarBarWidget.h>
 #include <vtkSmartPointer.h>
 #include <vtkTextProperty.h>
 
@@ -67,6 +69,16 @@ vtkRenderer* renderer_of(f3d_window_t* window)
   }
   vtkRendererCollection* rens = impl->GetRenderWindow()->GetRenderers();
   return rens ? rens->GetFirstRenderer() : nullptr;
+}
+
+vtkRenderWindowInteractor* interactor_of(f3d_window_t* window)
+{
+  f3d::detail::window_impl* impl = impl_of(window);
+  if (!impl || !impl->GetRenderWindow())
+  {
+    return nullptr;
+  }
+  return impl->GetRenderWindow()->GetInteractor();
 }
 
 // Add an actor's (transformed) bounds to bbox if they are valid.
@@ -173,6 +185,14 @@ std::map<f3d_window_t*, AxesCtx>& registry()
 std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarActor>>& cbarRegistry()
 {
   static std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarActor>> r;
+  return r;
+}
+
+// When the bar is made draggable it is owned by a vtkScalarBarWidget (drag-move +
+// corner-resize via its border representation) instead of being added as a plain prop.
+std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarWidget>>& cbarWidgetRegistry()
+{
+  static std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarWidget>> r;
   return r;
 }
 } // namespace
@@ -385,7 +405,7 @@ extern "C"
   }
 
   int f3d_ext_enable_colorbar(f3d_window_t* window, const unsigned char* rgb, int ncolors,
-    double vmin, double vmax, const char* title, const char* fmt)
+    double vmin, double vmax, const char* title, const char* fmt, int draggable)
   {
     vtkRenderer* ren = renderer_of(window);
     if (!ren || ncolors < 2 || !rgb)
@@ -398,6 +418,17 @@ extern "C"
     if (it != reg.end() && it->second)
     {
       ren->RemoveViewProp(it->second); // re-enable: refresh
+    }
+    // Tear down any prior widget so re-enabling does not leak/stack observers.
+    auto& wreg = cbarWidgetRegistry();
+    auto wit = wreg.find(window);
+    if (wit != wreg.end())
+    {
+      if (wit->second)
+      {
+        wit->second->SetEnabled(0);
+      }
+      wreg.erase(wit);
     }
 
     // Build a lookup table from the (ordered) RGB palette spanning [vmin, vmax].
@@ -437,13 +468,48 @@ extern "C"
     bar->GetLabelTextProperty()->SetFontSize(26);
     bar->GetLabelTextProperty()->ShadowOff();
 
-    ren->AddViewProp(bar);
     reg[window] = bar;
+
+    // Draggable: hand the bar to a vtkScalarBarWidget bound to the interactor. The widget
+    // adds the bar to the renderer through its representation and handles move/resize via a
+    // selectable border, so we do NOT AddViewProp it ourselves. Falls back to a static prop
+    // when there is no interactor.
+    vtkRenderWindowInteractor* rwi = interactor_of(window);
+    if (draggable && rwi)
+    {
+      vtkSmartPointer<vtkScalarBarWidget> widget = vtkSmartPointer<vtkScalarBarWidget>::New();
+      widget->SetInteractor(rwi);
+      widget->SetScalarBarActor(bar);
+      if (vtkScalarBarRepresentation* srep =
+            vtkScalarBarRepresentation::SafeDownCast(widget->GetRepresentation()))
+      {
+        // Seed the widget rectangle from the bar's current viewport placement.
+        srep->GetPositionCoordinate()->SetValue(0.90, 0.30);
+        srep->GetPosition2Coordinate()->SetValue(0.05, 0.45);
+      }
+      widget->SetEnabled(1);
+      wreg[window] = widget;
+    }
+    else
+    {
+      ren->AddViewProp(bar);
+    }
     return 1;
   }
 
   void f3d_ext_disable_colorbar(f3d_window_t* window)
   {
+    auto& wreg = cbarWidgetRegistry();
+    auto wit = wreg.find(window);
+    if (wit != wreg.end())
+    {
+      if (wit->second)
+      {
+        wit->second->SetEnabled(0); // detaches the bar from the renderer
+      }
+      wreg.erase(wit);
+    }
+
     auto& reg = cbarRegistry();
     auto it = reg.find(window);
     if (it != reg.end())
@@ -452,7 +518,7 @@ extern "C"
       {
         if (vtkRenderer* ren = renderer_of(window))
         {
-          ren->RemoveViewProp(it->second);
+          ren->RemoveViewProp(it->second); // only added when NOT draggable; harmless otherwise
         }
       }
       reg.erase(it);

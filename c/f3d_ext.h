@@ -295,10 +295,12 @@ extern "C"
    * @param vmax    Value at the top of the bar.
    * @param title   Bar title (null/empty for none).
    * @param fmt     printf format for the tick labels, e.g. "%.1f" (null = default).
+   * @param draggable Non-zero wraps the bar in a vtkScalarBarWidget so it can be dragged
+   *        and corner-resized with the mouse (needs an interactor); 0 = static prop.
    * @return 1 on success, 0 if there is no renderer or the palette is invalid.
    */
   F3D_EXPORT int f3d_ext_enable_colorbar(f3d_window_t* window, const unsigned char* rgb,
-    int ncolors, double vmin, double vmax, const char* title, const char* fmt);
+    int ncolors, double vmin, double vmax, const char* title, const char* fmt, int draggable);
 
   /**
    * @brief Remove the colour scale. No-op if never enabled.
