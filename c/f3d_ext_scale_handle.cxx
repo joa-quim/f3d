@@ -181,17 +181,21 @@ vtkSmartPointer<vtkActor> makeActor(vtkPolyDataAlgorithm* src, double r, double 
   return a;
 }
 
-// Shared look for both ring bands: a mid grey, lit but with high ambient so the band
-// stays clearly visible from every angle (no dark/flickering faces) while the fixed light
-// still gives it a little shading.
-void ringLook(vtkActor* a)
+// Lighting shared by the rings and the cone: lit but with high ambient so it stays clearly
+// visible from every angle (no dark/flickering faces) while the fixed light still gives it
+// a little shading. Colour is set by the caller.
+void litLook(vtkActor* a)
 {
-  a->GetProperty()->SetColor(0.78, 0.78, 0.82);
   a->GetProperty()->LightingOn();
   a->GetProperty()->SetAmbient(0.6);
   a->GetProperty()->SetDiffuse(0.5);
   a->GetProperty()->SetSpecular(0.12);
   a->GetProperty()->SetSpecularPower(15.0);
+}
+void ringLook(vtkActor* a)
+{
+  a->GetProperty()->SetColor(0.78, 0.78, 0.82);
+  litLook(a);
 }
 
 // Update the vertical arrowhead so its base stays anchored at the shaft top while its
@@ -545,8 +549,7 @@ void buildGeometry(GizmoCtx& c)
   vconeSrc->SetResolution(24);
   c.vconeSrc = vconeSrc;
   c.vcone = makeActor(vconeSrc, 1.0, 0.85, 0.2); // amber
-  // Stronger on-top bias than the rings so the compass ring never overlays/hides the cone.
-  c.vcone->GetMapper()->SetRelativeCoincidentTopologyPolygonOffsetParameters(0.0, -200000.0);
+  litLook(c.vcone); // shaded/illuminated exactly like the rings (keeps amber colour)
   c.vcone->PickableOn();
   updateVCone(c);
 
