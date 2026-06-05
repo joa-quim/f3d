@@ -505,11 +505,11 @@ extern "C"
       bar->SetLabelFormat(fmt);
     }
     bar->SetOrientationToVertical();
-    // Labels on the RIGHT of the band (default). Push the band as far right as the labels
-    // allow: band at x=0.86 (right edge 0.91) leaves ~0.09 for the tick labels up to the edge.
+    // Labels on the RIGHT of the band (default). Band sits at the far-right edge (x=0.90,
+    // right edge 0.95) with the tick labels in the last ~0.05 of the viewport.
     bar->SetTextPositionToSucceedScalarBar();
     bar->GetPositionCoordinate()->SetCoordinateSystemToNormalizedViewport();
-    bar->GetPositionCoordinate()->SetValue(0.86, 0.30);
+    bar->GetPositionCoordinate()->SetValue(0.90, 0.30);
     bar->SetWidth(0.05);   // slimmer + shorter than the old 0.08 x 0.76 (was too big)
     bar->SetHeight(0.45);
     // Fixed, readable label/title font. Without UnconstrainedFontSize the actor scales
@@ -539,7 +539,7 @@ extern "C"
             vtkScalarBarRepresentation::SafeDownCast(widget->GetRepresentation()))
       {
         // Seed the widget rectangle from the bar's current viewport placement.
-        srep->GetPositionCoordinate()->SetValue(0.86, 0.30);
+        srep->GetPositionCoordinate()->SetValue(0.90, 0.30);
         srep->GetPosition2Coordinate()->SetValue(0.05, 0.45);
       }
       widget->SetEnabled(1);
