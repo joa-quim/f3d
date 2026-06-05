@@ -353,6 +353,52 @@ extern "C"
   F3D_EXPORT int f3d_ext_round_points(f3d_window_t* window, int on, int unlit);
 
   /**
+   * @brief Bind Shift+'+' / Shift+'-' to grow / shrink the point sprites at runtime.
+   *
+   * f3d's 'o' key cycles the point-sprite TYPE but never the size, so the non-default
+   * splat shapes render at the fixed `model.point_sprites.size` (default 10) and look
+   * oversized. This installs a key observer that multiplies / divides that option by
+   * @p factor on each Shift+'+' / Shift+'-' press and re-renders. Plain '+' / '-' stay
+   * free (e.g. for zoom). Matches the shifted character so it is layout-independent
+   * (US Shift+'=' -> '+', PT Shift+'+' -> '*'). Needs an interactor + options handle.
+   *
+   * @param window  Window handle.
+   * @param options Options handle (owns model.point_sprites.size).
+   * @param size    Starting sprite size (<= 0 -> 10.0, the f3d default).
+   * @param factor  Per-press multiplier (<= 1 -> 1.25).
+   * @return 1 on success, 0 if there is no interactor / null args.
+   */
+  F3D_EXPORT int f3d_ext_enable_sprite_size_keys(
+    f3d_window_t* window, f3d_options_t* options, double size, double factor);
+
+  /**
+   * @brief Remove the Shift+'+'/'-' sprite-resize key observer. No-op if never enabled.
+   */
+  F3D_EXPORT void f3d_ext_disable_sprite_size_keys(f3d_window_t* window);
+
+  /**
+   * @brief Keep point SPRITES at the render.model_scale (vertical-scale) locations.
+   *
+   * f3d applies render.model_scale as an actor transform, which anisotropically DISTORTS
+   * gaussian/sphere/circle splats (the splat covariance picks up the model-view scale).
+   * Instead of scaling the sprite actor, this bakes the current model_scale into the
+   * sprite point COORDINATES (from a cached original), so the sprites move to the
+   * stretched z without deforming. Re-applied when the 'o' key cycles into a sprite mode
+   * and once on enable. Pair with the plain-points path (which f3d scales natively).
+   * Needs an interactor + the options handle.
+   *
+   * @param window  Window handle.
+   * @param options Options handle (owns render.model_scale).
+   * @return 1 on success, 0 if there is no interactor / null args.
+   */
+  F3D_EXPORT int f3d_ext_enable_sprite_zscale_sync(f3d_window_t* window, f3d_options_t* options);
+
+  /**
+   * @brief Remove the sprite vertical-scale sync (and its 'o' observer). No-op if unset.
+   */
+  F3D_EXPORT void f3d_ext_disable_sprite_zscale_sync(f3d_window_t* window);
+
+  /**
    * @brief Add polyline overlay(s) to the window and draw them ON TOP of the
    *        surfaces / images (the public libf3d mesh_t API can only build polygon
    *        cells, never line cells, so lines have to go through the renderer hatch).
