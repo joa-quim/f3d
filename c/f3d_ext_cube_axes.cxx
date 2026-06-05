@@ -32,6 +32,8 @@
 #include <vtkCubeAxesActor.h>
 #include <vtkLookupTable.h>
 #include <vtkMapper.h>
+#include <vtkCallbackCommand.h>
+#include <vtkCommand.h>
 #include <vtkNew.h>
 #include <vtkPlaneSource.h>
 #include <vtkPolyDataMapper.h>
@@ -194,6 +196,56 @@ std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarWidget>>& cbarWidgetRegistry
 {
   static std::map<f3d_window_t*, vtkSmartPointer<vtkScalarBarWidget>> r;
   return r;
+}
+
+// Per-window state for the 'b' key observer that shows/hides the f3d_ext colour bar in
+// step with f3d's own scalar-bar toggle.
+struct CbarKeyCtx
+{
+  f3d_window_t* window = nullptr;
+  vtkSmartPointer<vtkCallbackCommand> keyCmd;
+  unsigned long keyTag = 0;
+  vtkRenderWindowInteractor* rwi = nullptr;
+  bool visible = true;
+};
+std::map<f3d_window_t*, CbarKeyCtx>& cbarKeyRegistry()
+{
+  static std::map<f3d_window_t*, CbarKeyCtx> r;
+  return r;
+}
+
+// 'b' toggles f3d's native scalar bar; mirror it onto the f3d_ext bar (widget or static
+// prop). Low priority, never aborts, so f3d's own 'b' handler still runs.
+void CbarKeyCB(vtkObject* caller, unsigned long, void* clientData, void*)
+{
+  CbarKeyCtx* c = static_cast<CbarKeyCtx*>(clientData);
+  vtkRenderWindowInteractor* rwi = vtkRenderWindowInteractor::SafeDownCast(caller);
+  if (!c || !rwi)
+  {
+    return;
+  }
+  const char* key = rwi->GetKeySym();
+  if (!key || (key[0] != 'b' && key[0] != 'B') || key[1] != '\0')
+  {
+    return;
+  }
+  c->visible = !c->visible;
+  auto& wreg = cbarWidgetRegistry();
+  auto wit = wreg.find(c->window);
+  if (wit != wreg.end() && wit->second)
+  {
+    wit->second->SetEnabled(c->visible ? 1 : 0); // draggable: attach/detach the widget
+  }
+  else
+  {
+    auto& reg = cbarRegistry();
+    auto it = reg.find(c->window);
+    if (it != reg.end() && it->second)
+    {
+      it->second->SetVisibility(c->visible ? 1 : 0); // static prop
+    }
+  }
+  rwi->Render();
 }
 } // namespace
 
@@ -494,11 +546,38 @@ extern "C"
     {
       ren->AddViewProp(bar);
     }
+
+    // Install (once per window) the 'b' observer so the f3d_ext bar hides/shows with f3d's
+    // native scalar-bar toggle. Reset its visible state on (re-)enable.
+    auto& kreg = cbarKeyRegistry();
+    CbarKeyCtx& kc = kreg[window];
+    kc.window = window;
+    kc.visible = true;
+    if (rwi && !kc.keyTag)
+    {
+      kc.rwi = rwi;
+      vtkNew<vtkCallbackCommand> keyCmd;
+      keyCmd->SetCallback(CbarKeyCB);
+      keyCmd->SetClientData(&kc);
+      kc.keyCmd = keyCmd;
+      kc.keyTag = rwi->AddObserver(vtkCommand::KeyPressEvent, keyCmd, -1.0);
+    }
     return 1;
   }
 
   void f3d_ext_disable_colorbar(f3d_window_t* window)
   {
+    auto& kreg = cbarKeyRegistry();
+    auto kit = kreg.find(window);
+    if (kit != kreg.end())
+    {
+      if (kit->second.keyTag && kit->second.rwi)
+      {
+        kit->second.rwi->RemoveObserver(kit->second.keyTag);
+      }
+      kreg.erase(kit);
+    }
+
     auto& wreg = cbarWidgetRegistry();
     auto wit = wreg.find(window);
     if (wit != wreg.end())
