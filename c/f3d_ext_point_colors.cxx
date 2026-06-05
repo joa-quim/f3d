@@ -195,6 +195,19 @@ std::map<f3d_window_t*, SpriteZCtx>& spriteZRegistry()
   return r;
 }
 
+// Master per-point colour cache, keyed by sprite polydata. Seeded by
+// f3d_ext_color_point_sprites the moment colours are applied — INCLUDING the case where the
+// cloud starts as plain points (sprites disabled): the sprite polydata exists but is hidden,
+// so the colour array is set on it now and stashed here. When the user later presses 'o' to
+// enable sprites, f3d's ConfigurePointSprites wipes the array before reassertSpriteColors can
+// see it visible (so its own colorOrig cache stays empty) — reassert then falls back to THIS
+// cache to restore the colours. Without it, point-cloud-start + 'o' shows grey splats.
+std::map<vtkPolyData*, vtkSmartPointer<vtkUnsignedCharArray>>& spriteColorMaster()
+{
+  static std::map<vtkPolyData*, vtkSmartPointer<vtkUnsignedCharArray>> r;
+  return r;
+}
+
 // Read up to three doubles from the render.model_scale string ("sx, sy, sz"); missing
 // components default to 1.
 void readModelScale(f3d::options* options, double s[3])
@@ -352,14 +365,29 @@ bool reassertSpriteColors(SpriteZCtx& c)
     }
     else
     {
-      // Array was wiped: re-add it from the cache (nothing to do if we never saw it coloured).
+      // Array was wiped: re-add it from the cache. Prefer our own colorOrig copy; fall back to
+      // the master cache seeded by f3d_ext_color_point_sprites (covers the plain-points-start
+      // case, where the array was set on the hidden actor and never seen here while visible).
+      vtkUnsignedCharArray* src = nullptr;
       auto it = c.colorOrig.find(pd);
-      if (it == c.colorOrig.end())
+      if (it != c.colorOrig.end())
       {
-        continue;
+        src = it->second;
+      }
+      else
+      {
+        auto mit = spriteColorMaster().find(pd);
+        if (mit != spriteColorMaster().end())
+        {
+          src = mit->second;
+        }
+      }
+      if (!src)
+      {
+        continue; // never coloured -> nothing to restore
       }
       vtkSmartPointer<vtkUnsignedCharArray> restored = vtkSmartPointer<vtkUnsignedCharArray>::New();
-      restored->DeepCopy(it->second);
+      restored->DeepCopy(src);
       restored->SetName("f3d_ext_point_colors");
       pdata->SetScalars(restored);
       changed = true;
@@ -459,6 +487,16 @@ extern "C"
       colors->SetNumberOfTuples(static_cast<vtkIdType>(n_points));
       std::memcpy(colors->GetPointer(0), rgb, n_points * static_cast<size_t>(n_comp));
       pd->GetPointData()->SetScalars(colors);
+
+      // Stash a copy so reassertSpriteColors can restore it after f3d wipes the array on the
+      // first 'o' toggle (critical when the cloud started as plain points — see comment on
+      // spriteColorMaster). DeepCopy: the live array may be replaced by f3d.
+      {
+        vtkSmartPointer<vtkUnsignedCharArray> save = vtkSmartPointer<vtkUnsignedCharArray>::New();
+        save->DeepCopy(colors);
+        save->SetName("f3d_ext_point_colors");
+        spriteColorMaster()[pd] = save;
+      }
 
       // Direct per-point colours, shown at full strength (f3d sets Emissive off, which
       // makes the lit splat read very dim). f3d's ConfigurePointSprites runs once
@@ -592,6 +630,16 @@ extern "C"
     if (it->second.endTag && it->second.renderer)
     {
       it->second.renderer->RemoveObserver(it->second.endTag);
+    }
+    // Drop this window's polydata from the master colour cache so a freed pd address can't be
+    // reused by an unrelated cloud in a later view (keyed by raw pointer).
+    for (const auto& kv : it->second.orig)
+    {
+      spriteColorMaster().erase(kv.first);
+    }
+    for (const auto& kv : it->second.colorOrig)
+    {
+      spriteColorMaster().erase(kv.first);
     }
     reg.erase(it);
   }
