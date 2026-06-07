@@ -103,9 +103,10 @@ vtkRenderer* renderer_of(f3d_window_t* window)
   return rens ? rens->GetFirstRenderer() : nullptr;
 }
 
-// Per-window state for the Shift+'+' / Shift+'-' point-sprite resize keys. The size is the
-// stock `model.point_sprites.size` option (relative units); the 'o' key cycles the sprite
-// TYPE but never the size, so this gives the missing live size control.
+// Per-window state for the Shift+'+' / Shift+'-' point resize keys. Targets the live
+// representation: `model.point_sprites.size` when sprites are on, else `render.point_size`
+// for a plain point cloud; the 'o' key cycles the sprite TYPE but never the size, so this
+// gives the missing live size control for BOTH modes.
 struct SpriteKeyCtx
 {
   f3d::window* window = nullptr;   // for render() (re-applies the option to the renderer)
@@ -113,7 +114,8 @@ struct SpriteKeyCtx
   vtkRenderWindowInteractor* rwi = nullptr;
   vtkSmartPointer<vtkCallbackCommand> keyCmd;
   unsigned long keyTag = 0;
-  double size = 10.0;   // current sprite size
+  double size = 10.0;   // current sprite size (model.point_sprites.size)
+  double psize = 1.0;   // current plain-point size (render.point_size)
   double factor = 1.25; // multiply / divide per key press
 };
 std::map<f3d_window_t*, SpriteKeyCtx>& spriteKeyRegistry()
@@ -155,8 +157,29 @@ void SpriteKeyCB(vtkObject* caller, unsigned long, void* clientData, void*)
   {
     return;
   }
-  c->size = std::clamp(inc ? c->size * c->factor : c->size / c->factor, 0.05, 1000.0);
-  c->options->set("model.point_sprites.size", c->size);
+  // Resize whichever representation is live: sprites (model.point_sprites.size) when the
+  // point-sprite mode is on, else the plain point cloud (render.point_size). Without this the
+  // keys looked dead on a plain cloud (the default) because point_sprites.size is ignored
+  // until sprites are enabled.
+  bool sprites = false;
+  try
+  {
+    const std::string en = c->options->getAsString("model.point_sprites.enable");
+    sprites = (en == "true" || en == "1");
+  }
+  catch (...)
+  {
+  }
+  if (sprites)
+  {
+    c->size = std::clamp(inc ? c->size * c->factor : c->size / c->factor, 0.05, 1000.0);
+    c->options->set("model.point_sprites.size", c->size);
+  }
+  else
+  {
+    c->psize = std::clamp(inc ? c->psize * c->factor : c->psize / c->factor, 0.1, 1000.0);
+    c->options->set("render.point_size", c->psize);
+  }
   c->window->render();
   if (c->keyCmd)
   {
@@ -529,6 +552,20 @@ extern "C"
     c.rwi = rwi;
     c.size = (size > 0.0) ? size : 10.0;
     c.factor = (factor > 1.0) ? factor : 1.25;
+    // Seed the plain-point size from the live render.point_size (the Julia `pointsize` kwarg),
+    // so the first Shift+'+' grows from what the user actually sees, not a hard-coded 1.0.
+    try
+    {
+      c.psize = std::stod(c.options->getAsString("render.point_size"));
+    }
+    catch (...)
+    {
+      c.psize = 1.0;
+    }
+    if (c.psize <= 0.0)
+    {
+      c.psize = 1.0;
+    }
 
     vtkNew<vtkCallbackCommand> keyCmd;
     keyCmd->SetCallback(SpriteKeyCB);

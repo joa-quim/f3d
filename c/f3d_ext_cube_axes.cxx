@@ -505,13 +505,14 @@ extern "C"
       bar->SetLabelFormat(fmt);
     }
     bar->SetOrientationToVertical();
-    // Labels on the RIGHT of the band (default). Band sits at the far-right edge (x=0.90,
-    // right edge 0.95) with the tick labels in the last ~0.05 of the viewport.
+    // ORIGINAL size kept (0.05 x 0.45) — only MOVED to the window's top-right. Band lower-left
+    // at (0.90, 0.53): band top reaches y=0.98 and the right-side tick labels run out toward
+    // the right edge. Labels on the RIGHT of the band (SucceedScalarBar).
     bar->SetTextPositionToSucceedScalarBar();
     bar->GetPositionCoordinate()->SetCoordinateSystemToNormalizedViewport();
-    bar->GetPositionCoordinate()->SetValue(0.90, 0.30);
-    bar->SetWidth(0.05);   // slimmer + shorter than the old 0.08 x 0.76 (was too big)
-    bar->SetHeight(0.45);
+    bar->GetPositionCoordinate()->SetValue(0.90, 0.53);
+    bar->SetWidth(0.05);   // unchanged from the original
+    bar->SetHeight(0.45);  // unchanged from the original
     // Fixed, readable label/title font. Without UnconstrainedFontSize the actor scales
     // the text to fit the (now small) box -> the labels shrink to near-invisible.
     bar->SetUnconstrainedFontSize(true);
@@ -534,13 +535,27 @@ extern "C"
     {
       vtkSmartPointer<vtkScalarBarWidget> widget = vtkSmartPointer<vtkScalarBarWidget>::New();
       widget->SetInteractor(rwi);
+      // CRITICAL for the drag to work at all: give the widget a higher event priority than
+      // f3d's camera interactor style. Without this the style's OnLeftButtonDown handles the
+      // press first (→ StartRotate) and aborts it, so the widget only ever sees the passive
+      // mouse-moves the camera ignores (hence the move/cross cursor on hover) but never the
+      // button press — every click on the bar rotated the scene instead of dragging the bar.
+      // Also drop key-press activation so it is live immediately (no 'i' to arm it).
+      widget->KeyPressActivationOff();
+      widget->SetPriority(1.0f);
       widget->SetScalarBarActor(bar);
       if (vtkScalarBarRepresentation* srep =
             vtkScalarBarRepresentation::SafeDownCast(widget->GetRepresentation()))
       {
-        // Seed the widget rectangle from the bar's current viewport placement.
-        srep->GetPositionCoordinate()->SetValue(0.90, 0.30);
-        srep->GetPosition2Coordinate()->SetValue(0.05, 0.45);
+        // The widget rectangle IS the draggable hit area AND it drives the bar's size, so it
+        // must EXACTLY equal the bar's own box (same Position + same Width/Height). The old
+        // code offset the rect from the bar (0.92 vs 0.93) and a later attempt widened it,
+        // which fattened the band. Matching them keeps the ORIGINAL size and makes the whole
+        // band draggable. (The right-side tick labels sit just outside this box; grabbing the
+        // coloured band is the move target.)
+        srep->GetPositionCoordinate()->SetCoordinateSystemToNormalizedViewport();
+        srep->GetPositionCoordinate()->SetValue(0.90, 0.53);  // == bar position
+        srep->GetPosition2Coordinate()->SetValue(0.05, 0.45); // == bar Width x Height (no resize)
       }
       widget->SetEnabled(1);
       wreg[window] = widget;
