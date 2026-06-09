@@ -8,6 +8,7 @@ f3d_test(NAME TestUSDAInstancing DATA instancing.usda PLUGIN usd)
 f3d_test(NAME TestUSDAGlyphs DATA glyphs.usda PLUGIN usd)
 f3d_test(NAME TestUSDPurpose DATA purpose.usdc PLUGIN usd)
 f3d_test(NAME TestUSDInterpolation DATA two_quads_interp.usda PLUGIN usd)
+f3d_test(NAME TestUSDUnsupportedGeom DATA nurb.usda ARGS --verbose REGEXP "Unknown geometry type" PLUGIN usd NO_BASELINE)
 
 if(F3D_MODULE_EXR)
   f3d_test(NAME TestUSDZMemEXR DATA small.usdz PLUGIN usd)
@@ -24,6 +25,9 @@ f3d_test(NAME TestUSDZAnimated DATA AnimatedCube.usdz PLUGIN usd ARGS --animatio
 f3d_test(NAME TestUSDZRigged DATA RiggedSimple.usdz PLUGIN usd ARGS --animation-time=0.3)
 f3d_test(NAME TestUSDZMaterials DATA McUsd.usdz PLUGIN usd ARGS --camera-position=1055,912,-247 --camera-focal-point=69,173,63 THRESHOLD 0.09) # The threshold is high because of the complex materials
 f3d_test(NAME TestUSDZMaterialsInterationReload DATA McUsd.usdz PLUGIN usd INTERACTION NO_BASELINE) # Up
+f3d_test(NAME TestUSDBlendShapes DATA SimpleBlendShapes.usda ARGS --animation-time=1 --animation-progress PLUGIN usd)
+f3d_test(NAME TestUSDBlendShapesFaceVarying DATA SimpleBlendShapesFaceVarying.usda ARGS --animation-time=1 --animation-progress PLUGIN usd)
+f3d_test(NAME TestUSDSkinJointOrder DATA skel_animation_sparsity.usda ARGS --animation-time=0.3 --animation-progress PLUGIN usd)
 
 # Scene hierarchy test for USD importer
 if(VTK_VERSION VERSION_GREATER_EQUAL 9.6.20260306)

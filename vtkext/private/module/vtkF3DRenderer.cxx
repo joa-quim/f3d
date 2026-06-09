@@ -2556,6 +2556,14 @@ void vtkF3DRenderer::ConfigureActorsProperties()
       coloring.OriginalActor->SetScale(s[0], s[1], s[2]);
     }
 
+    // Per-mesh 4x4 transform carried by f3d::transform3d_t: the importer set it on the
+    // original actor; the rendered coloring actor is a separate clone, so propagate it here.
+    // Composes on top of the (fork-internal) live ModelScale above.
+    if (coloring.OriginalActor->GetUserMatrix())
+    {
+      coloring.Actor->SetUserMatrix(coloring.OriginalActor->GetUserMatrix());
+    }
+
     if (this->EdgeVisible.has_value())
     {
       coloring.Actor->GetProperty()->SetEdgeVisibility(this->EdgeVisible.value());
@@ -2649,6 +2657,19 @@ void vtkF3DRenderer::ConfigureActorsProperties()
         coloring.OriginalActor->ForceTranslucentOn();
       }
     }
+    else if (vtkTexture* origAlbedo = coloring.OriginalActor->GetProperty()->GetTexture("albedoTex"))
+    {
+      // No global override: honour a base-color texture carried by the source actor (e.g.
+      // f3d::mesh_view::memory_view_t::baseColorTexture), propagating it to the rendered
+      // coloring actor (which is a separate actor from OriginalActor).
+      coloring.Actor->GetProperty()->SetBaseColorTexture(origAlbedo);
+      if (origAlbedo->GetImageDataInput(0) &&
+        origAlbedo->GetImageDataInput(0)->GetNumberOfScalarComponents() == 4)
+      {
+        coloring.Actor->ForceTranslucentOn();
+        coloring.OriginalActor->ForceTranslucentOn();
+      }
+    }
 
     if (this->TextureMaterial.has_value())
     {
@@ -2662,6 +2683,12 @@ void vtkF3DRenderer::ConfigureActorsProperties()
       auto emissTex = ::GetTexture(this->TextureEmissive.value(), true);
       coloring.Actor->GetProperty()->SetEmissiveTexture(emissTex);
       coloring.OriginalActor->GetProperty()->SetEmissiveTexture(emissTex);
+    }
+    else if (vtkTexture* origEmis = coloring.OriginalActor->GetProperty()->GetTexture("emissiveTex"))
+    {
+      // No global override: honour an emissive texture carried by the source actor (e.g.
+      // f3d::mesh_view::memory_view_t::baseColorTexture with emissive=true).
+      coloring.Actor->GetProperty()->SetEmissiveTexture(origEmis);
     }
 
     if (emissiveFactor)
