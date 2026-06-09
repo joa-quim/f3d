@@ -48,7 +48,7 @@ struct vtkF3DGenericImporter::Internals
   vtkSmartPointer<vtkTexture> BaseColorTexture = nullptr;
   bool BaseColorTextureEmissive = false;
 
-  // Optional 4x4 user transform (from mesh_view::transform_3d), applied to every imported actor.
+  // Optional 4x4 user transform (from f3d::transform3d_t), applied to every imported actor.
   vtkSmartPointer<vtkMatrix4x4> UserMatrix = nullptr;
 
   bool HasAnimation = false;
@@ -208,7 +208,7 @@ void vtkF3DGenericImporter::CreateActorForBlock(
     }
   }
 
-  // 4x4 GPU transform carried by mesh_view::transform_3d. Set on this (original) actor; the
+  // 4x4 GPU transform carried by f3d::transform3d_t. Set on this (original) actor; the
   // renderer propagates it to the rendered coloring-actor clone in ConfigureActorsProperties.
   if (this->Pimpl->UserMatrix)
   {

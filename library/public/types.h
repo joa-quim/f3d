@@ -275,6 +275,33 @@ public:
 };
 
 /**
+ *  Store a 4x4 transform matrix as a sequence of 16 double values, row-major
+ *  (i.e. `matrix[row * 4 + col]`). It can encode any 3D affine transform: any
+ *  combination of translation, rotation and (anisotropic) scaling. The default is
+ *  the identity matrix (no transform). VTK consumes it as a `vtkMatrix4x4`.
+ */
+class transform3d_t : public double_array_t<16>
+{
+public:
+  inline transform3d_t()
+  {
+    // identity by default (the base double_array_t zero-initializes the array)
+    (*this)[0] = 1.0;
+    (*this)[5] = 1.0;
+    (*this)[10] = 1.0;
+    (*this)[15] = 1.0;
+  }
+  inline explicit transform3d_t(const std::vector<double>& vec)
+    : double_array_t(vec)
+  {
+  }
+  inline transform3d_t(const std::initializer_list<double>& list)
+    : double_array_t(list)
+  {
+  }
+};
+
+/**
  * Describe a colormap, which is a vector of repeated:
  * val,r,g,b
  */

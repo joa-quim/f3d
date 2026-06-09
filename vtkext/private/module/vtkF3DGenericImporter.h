@@ -40,7 +40,7 @@ public:
 
   /**
    * Set a 4x4 user matrix applied to the imported actor(s) as a GPU transform, as carried by
-   * f3d::mesh_view::transform_3d. Encodes translation, rotation and/or scaling. Pass nullptr
+   * f3d::transform3d_t. Encodes translation, rotation and/or scaling. Pass nullptr
    * (or the identity) to leave the actor(s) untransformed.
    */
   void SetUserMatrix(vtkMatrix4x4* matrix);
