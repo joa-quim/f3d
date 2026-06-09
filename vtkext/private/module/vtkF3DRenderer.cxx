@@ -2509,7 +2509,7 @@ void vtkF3DRenderer::ConfigureActorsProperties()
 
   for (const auto& coloring : this->Importer->GetColoringActorsAndMappers())
   {
-    // Per-mesh 4x4 transform carried by mesh_view::transform_3d: the importer set it on the
+    // Per-mesh 4x4 transform carried by f3d::transform3d_t: the importer set it on the
     // original actor; the rendered coloring actor is a separate clone, so propagate it here.
     if (coloring.OriginalActor->GetUserMatrix())
     {

@@ -3,6 +3,8 @@
 
 #include "exception.h"
 #include "export.h"
+#include "image.h"
+#include "types.h"
 
 /// @cond
 #include <array>
@@ -132,23 +134,6 @@ public:
   };
 
   /**
-   * Structure representing an in-memory base-color (albedo) texture, sampled through the
-   * mesh `textureCoordinates`. Avoids writing a temporary image file to disk. `data` is a
-   * row-major uint8 buffer of `width * height * components` bytes, with `components` equal
-   * to 3 (RGB) or 4 (RGBA). Leave `data` null (the default) for no texture. The pointer
-   * must remain valid until the mesh is removed from the scene. When `emissive` is true the
-   * same image is additionally installed as the emissive texture (for unlit/flat display).
-   */
-  struct texture_t
-  {
-    size_t width = 0;
-    size_t height = 0;
-    size_t components = 3;
-    const void* data = nullptr;
-    bool emissive = false;
-  };
-
-  /**
    * Structure representing a view of the mesh in memory at a given time.
    * The pointers provided in this structure must remain valid once the mesh is added to the scene.
    * Will throw a load_failure_exception if any of this assumptions is not respected:
@@ -173,8 +158,13 @@ public:
     std::vector<data_array_t> pointScalars;
     std::vector<data_array_t> cellScalars;
 
-    // optional in-memory base-color texture (sampled via textureCoordinates)
-    texture_t baseColorTexture;
+    // Optional in-memory base-color (albedo) texture, sampled through the mesh
+    // `textureCoordinates`. Avoids writing a temporary image file to disk. An empty image
+    // (the default) means no texture; otherwise it must be a BYTE image with 3 (RGB) or
+    // 4 (RGBA) channels. When `baseColorTextureEmissive` is true the same image is
+    // additionally installed as the emissive texture (for unlit/flat display).
+    image baseColorTexture;
+    bool baseColorTextureEmissive = false;
   };
 
   /**
@@ -184,25 +174,16 @@ public:
   [[nodiscard]] virtual memory_view_t getMemoryView(double time) const = 0;
 
   /**
-   * Structure representing a 3D affine transform applied to the mesh as a whole, as a single
-   * 4x4 homogeneous `matrix` (row-major, i.e. `matrix[row * 4 + col]`). It can encode any
-   * combination of translation, rotation and (anisotropic) scaling. The transform is applied
-   * on the GPU at render time, so the mesh coordinates returned by getMemoryView() and the
-   * axis labels are left unchanged. The default is the identity matrix (no transform). A
-   * typical use is vertical exaggeration of a surface, encoded as a scale on one axis.
+   * Specify a 3D affine transform applied to the whole mesh at a given time, as a
+   * `f3d::transform3d_t` (a 4x4 row-major homogeneous matrix). It can encode any combination
+   * of translation, rotation and (anisotropic) scaling. The transform is applied on the GPU
+   * at render time, so the mesh coordinates returned by getMemoryView() and the axis labels
+   * are left unchanged. The default implementation returns the identity transform (no
+   * transform). Override to translate, rotate or scale the mesh, optionally as a function of
+   * time for animation. A typical use is vertical exaggeration of a surface, encoded as a
+   * scale on one axis.
    */
-  struct transform_3d
-  {
-    std::array<double, 16> matrix = { 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-      0.0, 0.0, 0.0, 1.0 };
-  };
-
-  /**
-   * Specify a 3D affine transform applied to the whole mesh at a given time. The default
-   * implementation returns the identity transform (no transform). Override to translate,
-   * rotate or scale the mesh, optionally as a function of time for animation.
-   */
-  [[nodiscard]] virtual transform_3d getTransform(double) const
+  [[nodiscard]] virtual transform3d_t getTransform(double) const
   {
     return {};
   }
